@@ -363,7 +363,10 @@ func (p *PXE) handle(c *net.UDPConn, b []byte, src *net.UDPAddr, li localInfo, o
 	// is the microseconds between this check and the write: harmless, because an offer only names iPXE or the /boot URL, and /boot,
 	// which decides under s.mu, is the only thing that deploys.
 	if !p.s.pxeArmed(d.mac) {
-		p.lim.noisef("notarmed:"+d.mac, "pxe: %s not armed, ignoring", d.mac)
+		// A protected line with its own key: this only fires for a MAC that WAS armed a moment ago (the first check passed), so an
+		// attacker can't mass-produce it with made-up MACs the way they can the ordinary "not armed" noise, and it must not share a
+		// suppression key with that noise either.
+		p.lim.logf("revoked:"+d.mac, "pxe: %s was armed but no longer armed (booted, disarmed, expired or server degraded): not replying", d.mac)
 		return
 	}
 	_ = c.SetWriteDeadline(time.Now().Add(250 * time.Millisecond))

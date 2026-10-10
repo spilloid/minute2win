@@ -129,6 +129,15 @@ func (t *tftpServer) activeCount() int {
 	return t.active
 }
 
+// readErrBackoff paces the listener after a failed read.
+const readErrBackoff = 50 * time.Millisecond
+
+// readFailed logs a listener read failure. It is a protected (policy) line, not noise: it means the TFTP server itself is in trouble,
+// and an attacker flooding unauthenticated requests must not be able to hide it behind the noise budget.
+func (t *tftpServer) readFailed(err error) {
+	t.lim.logf("tftp-read-err", "tftp: read: %s", errText(err))
+}
+
 func (t *tftpServer) serve() {
 	buf := make([]byte, 1500)
 	oob := make([]byte, 128)
@@ -138,7 +147,8 @@ func (t *tftpServer) serve() {
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			t.lim.noisef("tftp-read-err", "tftp: read: %s", errText(err))
+			t.readFailed(err)
+			time.Sleep(readErrBackoff) // a persistent socket error must not spin the CPU or the log
 			continue
 		}
 		t.request(append([]byte(nil), buf[:n]...), src, li)

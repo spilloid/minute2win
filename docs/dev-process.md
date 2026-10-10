@@ -160,3 +160,16 @@ accepted all of them (A-F). As before, each fix has a test that fails when the o
 Remaining gaps: write deadlines and log budgets were tested with fakes and a simulated clock, not under real socket pressure; the
 capture-drop failure path is untested; and everything listed in CLAUDE.md for real PXE firmware (UEFI and BIOS firmware PXE, TFTP to a
 real client, Secure Boot, Windows) is still UNVERIFIED.
+
+### PXE adversarial review round 3 (astra, vendored codex 0.162.1)
+
+A, B, D, E, F CLOSED. **C NOT CLOSED, Medium, confirmed:** two events that should be protected diagnostics still sat in the noise class, so an
+attacker flooding unauthenticated requests could hide them: the final authorization-recheck rejection of a previously armed MAC (which
+also shared its suppression key with the ordinary "not armed" noise for that MAC) and TFTP listener read failures. Ordinary first-check
+"not armed" lines stay in the noise class (astra agreed: a spoofer can invent unlimited MACs). Fixed by the orchestrator (a small, mechanical
+change, so not delegated): the recheck rejection is a policy line with its own `revoked:<mac>` key (it can only fire for a MAC that WAS
+armed a moment earlier); the listener read failure is a policy line via `readFailed`, and the listener now backs off 50 ms after a read
+error so a persistent socket failure can't spin the CPU. Two tests (`pxe_review3_test.go`) flood the noise budget with 5000 distinct keys and
+require both lines to still appear; the recheck test failed on the unchanged code, and planting the old class back fails the TFTP test.
+astra's note that coverage of the *call sites'* classification and of writes where `WriteTimeout > Lifetime` would be nice is accepted as a
+follow-up; the first is now covered for these two sites.
