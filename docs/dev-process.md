@@ -173,3 +173,8 @@ error so a persistent socket failure can't spin the CPU. Two tests (`pxe_review3
 require both lines to still appear; the recheck test failed on the unchanged code, and planting the old class back fails the TFTP test.
 astra's note that coverage of the *call sites'* classification and of writes where `WriteTimeout > Lifetime` would be nice is accepted as a
 follow-up; the first is now covered for these two sites.
+
+Round 4 (astra): finding C **CLOSED**, no regression, **SIGN-OFF: yes** for the PXE front end (after four rounds: 11 findings, then 5 gaps in the fixes, then 1 more, then closed). Two coverage caveats accepted
+and noted rather than fixed: the "burn the ordinary key" step in the recheck test runs after the noise budget is already exhausted so it does not itself stamp that key (the separate
+`revoked:` key is covered by source inspection), and the TFTP test checks the backoff constant, not the actual sleep or listener dispatch. Still UNVERIFIED: any real PXE firmware (BIOS and UEFI), TFTP to
+a real client, the Secure Boot shim chain, and anything PXE on Windows beyond compiling; the write deadlines and log budgets were tested with fakes and a simulated clock, not under real socket pressure.
