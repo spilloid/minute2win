@@ -328,7 +328,7 @@ func (p *PXE) serveDHCP(c *net.UDPConn, onProxyPort bool) {
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			p.lim.logf("read-err", "pxe: read: %v", err)
+			p.lim.logf("read-err", "pxe: read: %s", errText(err))
 			continue
 		}
 		p.handle(c, buf[:n], src, li, onProxyPort)
@@ -338,7 +338,7 @@ func (p *PXE) serveDHCP(c *net.UDPConn, onProxyPort bool) {
 func (p *PXE) handle(c *net.UDPConn, b []byte, src *net.UDPAddr, li localInfo, onProxyPort bool) {
 	req, err := parseDHCP(b)
 	if err != nil {
-		p.lim.logf("bad:"+src.IP.String(), "pxe: ignoring packet from %s: %v", src, err)
+		p.lim.noisef("bad:"+src.IP.String(), "pxe: ignoring packet from %s: %s", src, errText(err))
 		return
 	}
 	serverIP := p.serverIP(li)
@@ -347,7 +347,7 @@ func (p *PXE) handle(c *net.UDPConn, b []byte, src *net.UDPAddr, li localInfo, o
 	case pxeSilent:
 		return
 	case pxeNotArmed:
-		p.lim.logf("notarmed:"+d.mac, "pxe: %s not armed, ignoring", d.mac)
+		p.lim.noisef("notarmed:"+d.mac, "pxe: %s not armed, ignoring", d.mac)
 		return
 	case pxeNoAddress:
 		p.lim.logf("noaddr:"+d.mac, "pxe: %s is armed but this server can't tell which address to advertise; set -pxe-ip", d.mac)
@@ -363,12 +363,12 @@ func (p *PXE) handle(c *net.UDPConn, b []byte, src *net.UDPAddr, li localInfo, o
 	// is the microseconds between this check and the write: harmless, because an offer only names iPXE or the /boot URL, and /boot,
 	// which decides under s.mu, is the only thing that deploys.
 	if !p.s.pxeArmed(d.mac) {
-		p.lim.logf("notarmed:"+d.mac, "pxe: %s not armed, ignoring", d.mac)
+		p.lim.noisef("notarmed:"+d.mac, "pxe: %s not armed, ignoring", d.mac)
 		return
 	}
 	_ = c.SetWriteDeadline(time.Now().Add(250 * time.Millisecond))
 	if err := writeUDP(c, reply, dst, li, bcast); err != nil {
-		p.lim.logf("send:"+d.mac, "pxe: reply to %s (%s) failed: %v", d.mac, dst, err)
+		p.lim.logf("send:"+d.mac, "pxe: reply to %s (%s) failed: %s", d.mac, dst, errText(err))
 		return
 	}
 	kind := "offered"
@@ -399,32 +399,51 @@ func bindError(what string, port int, err error) error {
 	return fmt.Errorf("pxe: cannot bind %s on UDP %d: %w", what, port, err)
 }
 
-// logLimiter keeps logging bounded whatever arrives on the wire:
-//   - per key (a MAC, a client IP, a file name): at most one line per period;
-//   - the key map has a hard cap; when it is full it is replaced by an empty one (O(1); the worst case is a repeated line);
-//   - a global token bucket (logRate lines/s, logBurst burst) caps total volume; dropped lines are counted and reported once
-//     the budget allows.
+// logLimiter keeps logging bounded whatever arrives on the wire. Lines come in two classes with separate token buckets, so a flood
+// of attacker-reachable noise cannot starve the lines that matter:
+//   - policy (logf): offers/ACKs to armed MACs, send failures, local errors. 20 lines/s, burst 50.
+//   - noise (noisef): anything any host can trigger: malformed packets, unarmed MACs (a spoofer can invent any number), every TFTP
+//     line. 5 lines/s, burst 20.
 //
-// Callers format attacker-supplied text with %q.
+// Per key (a MAC, a client IP, a file name) a line is printed at most once per period; the key is stamped only when its line is
+// actually printed, so a line dropped for budget is retried by the next event. Every dropped line (per-key repeat or budget) is
+// counted, and the "N suppressed" notice costs a token like any other line, so output never exceeds the bucket's rate. The key map
+// has a hard cap; when full it is replaced by an empty one (O(1); the worst case is a repeated line). Startup lines bypass it.
+//
+// Callers quote anything from the wire (%q, errText).
 type logLimiter struct {
-	mu         sync.Mutex
-	period     time.Duration
-	now        func() time.Time
-	last       map[string]time.Time
-	out        func(string, ...any)
-	tokens     float64
-	refilledAt time.Time
-	dropped    int
+	mu     sync.Mutex
+	period time.Duration
+	now    func() time.Time
+	last   map[string]time.Time
+	out    func(string, ...any)
+	class  [2]logBucket
+}
+
+type logBucket struct {
+	name        string
+	rate, burst float64
+	tokens      float64
+	at          time.Time
+	dropped     int
 }
 
 const (
-	logKeyCap = 4096
-	logRate   = 20.0 // lines per second
-	logBurst  = 50.0
+	logKeyCap     = 4096
+	logPolicy     = 0
+	logNoise      = 1
+	logRate       = 20.0 // policy lines per second
+	logBurst      = 50.0
+	logNoiseRate  = 5.0
+	logNoiseBurst = 20.0
 )
 
 func newLogLimiter(period time.Duration, now func() time.Time) *logLimiter {
-	return &logLimiter{period: period, now: now, last: map[string]time.Time{}, out: log.Printf, tokens: logBurst, refilledAt: now()}
+	t := now()
+	return &logLimiter{period: period, now: now, last: map[string]time.Time{}, out: log.Printf, class: [2]logBucket{
+		{name: "policy", rate: logRate, burst: logBurst, tokens: logBurst, at: t},
+		{name: "noise", rate: logNoiseRate, burst: logNoiseBurst, tokens: logNoiseBurst, at: t},
+	}}
 }
 
 // setOut swaps the output (tests).
@@ -434,33 +453,49 @@ func (l *logLimiter) setOut(out func(string, ...any)) {
 	l.mu.Unlock()
 }
 
-func (l *logLimiter) logf(key, format string, args ...any) {
+// suppressed reports the dropped-line counts not yet announced (tests).
+func (l *logLimiter) suppressed() (policy, noise int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.class[logPolicy].dropped, l.class[logNoise].dropped
+}
+
+func (l *logLimiter) logf(key, format string, args ...any)   { l.emit(logPolicy, key, format, args) }
+func (l *logLimiter) noisef(key, format string, args ...any) { l.emit(logNoise, key, format, args) }
+
+func (l *logLimiter) emit(class int, key, format string, args []any) {
 	l.mu.Lock()
 	now := l.now()
-	if t, ok := l.last[key]; ok && now.Sub(t) < l.period {
+	b := &l.class[class]
+	if el := now.Sub(b.at).Seconds(); el > 0 {
+		b.tokens = min(b.burst, b.tokens+el*b.rate)
+	}
+	b.at = now
+	k := b.name + "\x00" + key
+	if t, ok := l.last[k]; ok && now.Sub(t) < l.period {
+		b.dropped++
 		l.mu.Unlock()
 		return
 	}
+	if b.tokens < 1 {
+		b.dropped++
+		l.mu.Unlock()
+		return
+	}
+	b.tokens--
 	if len(l.last) >= logKeyCap {
 		l.last = make(map[string]time.Time, 64)
 	}
-	l.last[key] = now
-	if el := now.Sub(l.refilledAt).Seconds(); el > 0 {
-		l.tokens = min(logBurst, l.tokens+el*logRate)
+	l.last[k] = now
+	notice := 0
+	if b.dropped > 0 && b.tokens >= 1 {
+		b.tokens--
+		notice, b.dropped = b.dropped, 0
 	}
-	l.refilledAt = now
-	if l.tokens < 1 {
-		l.dropped++
-		l.mu.Unlock()
-		return
-	}
-	l.tokens--
-	dropped := l.dropped
-	l.dropped = 0
 	out := l.out
 	l.mu.Unlock()
-	if dropped > 0 {
-		out("pxe: %d log line(s) suppressed (rate limit)", dropped)
+	if notice > 0 {
+		out("pxe: %d %s log line(s) suppressed (repeats within %s, or over the rate limit)", notice, b.name, l.period)
 	}
 	out(format, args...)
 }

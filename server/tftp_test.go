@@ -102,11 +102,20 @@ func newTestTFTPTimeout(t *testing.T, dir string, timeout time.Duration) *tftpSe
 
 func newTestTFTPFull(t *testing.T, dir string, timeout time.Duration, limits tftpLimits) *tftpServer {
 	t.Helper()
+	return newTestTFTPWith(t, dir, timeout, limits, nil)
+}
+
+// newTestTFTPWith lets a test replace parts of the server (dial, denyOut) before it starts serving.
+func newTestTFTPWith(t *testing.T, dir string, timeout time.Duration, limits tftpLimits, setup func(*tftpServer)) *tftpServer {
+	t.Helper()
 	c, err := listenUDP(net.IPv4(127, 0, 0, 1), 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ts := newTFTPServer(c, dir, timeout, limits, newLogLimiter(time.Minute, time.Now))
+	if setup != nil {
+		setup(ts)
+	}
 	go ts.serve()
 	t.Cleanup(ts.close)
 	return ts

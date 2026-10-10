@@ -47,6 +47,9 @@ type tftpLimits struct {
 	MaxPerIP  int           // concurrent transfers per client IP (4)
 	Lifetime  time.Duration // hard cap on one transfer (60 s)
 	Idle      time.Duration // a transfer with no new ACK for this long ends (20 s), whatever timeout was negotiated
+	// WriteTimeout bounds every send (DATA, OACK, ERROR, and the listener's refusals): 2 s. A send that fails or times out ends the
+	// transfer, so a blocked socket can never hold a slot past the lifetime.
+	WriteTimeout time.Duration
 }
 
 func (l tftpLimits) withDefaults() tftpLimits {
@@ -62,11 +65,31 @@ func (l tftpLimits) withDefaults() tftpLimits {
 	if l.Idle <= 0 {
 		l.Idle = 20 * time.Second
 	}
+	if l.WriteTimeout <= 0 {
+		l.WriteTimeout = 2 * time.Second
+	}
 	return l
+}
+
+// tftpConn is a transfer's socket (a connected *net.UDPConn; tests substitute one whose writes block).
+type tftpConn interface {
+	Read([]byte) (int, error)
+	Write([]byte) (int, error)
+	SetReadDeadline(time.Time) error
+	SetWriteDeadline(time.Time) error
+	Close() error
+}
+
+// denyWriter is how the listener sends refusals (the listening *net.UDPConn; tests substitute a blocking one).
+type denyWriter interface {
+	WriteToUDP([]byte, *net.UDPAddr) (int, error)
+	SetWriteDeadline(time.Time) error
 }
 
 type tftpServer struct {
 	conn    *net.UDPConn
+	denyOut denyWriter
+	dial    func(laddr, raddr *net.UDPAddr) (tftpConn, error)
 	dir     string
 	timeout time.Duration
 	limits  tftpLimits
@@ -76,13 +99,14 @@ type tftpServer struct {
 	closed   bool
 	active   int
 	perIP    map[string]int
-	inflight map[string]*net.UDPConn // client addr + NUL + file name -> its transfer socket (nil while dialing)
+	inflight map[string]tftpConn // client addr + NUL + file name -> its transfer socket (nil while dialing)
 	wg       sync.WaitGroup
 }
 
 func newTFTPServer(c *net.UDPConn, dir string, timeout time.Duration, limits tftpLimits, lim *logLimiter) *tftpServer {
-	return &tftpServer{conn: c, dir: dir, timeout: timeout, limits: limits.withDefaults(), lim: lim,
-		perIP: map[string]int{}, inflight: map[string]*net.UDPConn{}}
+	return &tftpServer{conn: c, denyOut: c, dir: dir, timeout: timeout, limits: limits.withDefaults(), lim: lim,
+		perIP: map[string]int{}, inflight: map[string]tftpConn{},
+		dial: func(laddr, raddr *net.UDPAddr) (tftpConn, error) { return net.DialUDP("udp4", laddr, raddr) }}
 }
 
 // close stops the listener and every transfer at once (closing their sockets unblocks their reads), then waits for them.
@@ -114,7 +138,7 @@ func (t *tftpServer) serve() {
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			t.lim.logf("tftp-read-err", "tftp: read: %v", err)
+			t.lim.noisef("tftp-read-err", "tftp: read: %s", errText(err))
 			continue
 		}
 		t.request(append([]byte(nil), buf[:n]...), src, li)
@@ -186,10 +210,17 @@ func tftpErrorPkt(code uint16, msg string) []byte {
 	return append(append(b, msg...), 0)
 }
 
+// deny sends a refusal from the listening socket (bounded by WriteTimeout, so a blocked socket can't stall the listener) and logs
+// it as network noise. logMsg must already be safe: anything from the wire in it is quoted.
 func (t *tftpServer) deny(src *net.UDPAddr, code uint16, msg, logMsg string) {
-	_, _ = t.conn.WriteToUDP(tftpErrorPkt(code, msg), src)
-	t.lim.logf("tftp-deny:"+src.IP.String()+":"+logMsg, "tftp: %s: %s", src, logMsg)
+	_ = t.denyOut.SetWriteDeadline(time.Now().Add(t.limits.WriteTimeout))
+	_, _ = t.denyOut.WriteToUDP(tftpErrorPkt(code, msg), src)
+	t.lim.noisef("tftp-deny:"+src.IP.String()+":"+logMsg, "tftp: %s: %s", src, logMsg)
 }
+
+// errText renders an error for a log line as a quoted string: errors can carry text from the network (a *PathError holds the
+// requested file name), and quoting keeps a newline in it from forging a log line.
+func errText(err error) string { return strconv.Quote(err.Error()) }
 
 func (t *tftpServer) request(b []byte, src *net.UDPAddr, li localInfo) {
 	if len(b) < 2 {
@@ -205,7 +236,7 @@ func (t *tftpServer) request(b []byte, src *net.UDPAddr, li localInfo) {
 	}
 	r, err := parseRRQ(b)
 	if err != nil {
-		t.deny(src, tftpErrIllegal, err.Error(), err.Error())
+		t.deny(src, tftpErrIllegal, err.Error(), errText(err))
 		return
 	}
 	key := src.String() + "\x00" + r.file
@@ -221,7 +252,7 @@ func (t *tftpServer) request(b []byte, src *net.UDPAddr, li localInfo) {
 	}
 	f, size, err := openServed(t.dir, r.file)
 	if err != nil {
-		t.deny(src, tftpErrNotFound, "file not found", fmt.Sprintf("refused %q (%v)", r.file, err))
+		t.deny(src, tftpErrNotFound, "file not found", fmt.Sprintf("refused %q (%s)", r.file, errText(err)))
 		return
 	}
 	ip := src.IP.String()
@@ -260,11 +291,11 @@ func (t *tftpServer) request(b []byte, src *net.UDPAddr, li localInfo) {
 	} else if la := t.conn.LocalAddr().(*net.UDPAddr); !la.IP.IsUnspecified() {
 		laddr = &net.UDPAddr{IP: la.IP}
 	}
-	c, err := net.DialUDP("udp4", laddr, src)
+	c, err := t.dial(laddr, src)
 	if err != nil {
 		f.Close()
 		release()
-		t.lim.logf("tftp-dial", "tftp: %s: %v", src, err)
+		t.lim.logf("tftp-dial", "tftp: %s: %s", src, errText(err))
 		return
 	}
 	t.mu.Lock()
@@ -284,11 +315,11 @@ func (t *tftpServer) request(b []byte, src *net.UDPAddr, li localInfo) {
 		sent, err := t.transfer(c, f, size, r.opts)
 		switch {
 		case err == nil:
-			t.lim.logf("tftp-ok:"+ip+":"+r.file, "tftp: sent %q to %s (%d bytes)", r.file, ip, sent)
+			t.lim.noisef("tftp-ok:"+ip+":"+r.file, "tftp: sent %q to %s (%d bytes)", r.file, ip, sent)
 		case errors.Is(err, errPeerAborted):
 			// Normal: UEFI asks for tsize, then aborts and asks again.
 		default:
-			t.lim.logf("tftp-fail:"+ip+":"+r.file, "tftp: %q to %s failed: %v", r.file, ip, err)
+			t.lim.noisef("tftp-fail:"+ip+":"+r.file, "tftp: %q to %s failed: %s", r.file, ip, errText(err))
 		}
 	}()
 }
@@ -297,7 +328,7 @@ var errPeerAborted = errors.New("client aborted")
 
 // transfer runs one read: optional OACK, then DATA blocks, each waiting for its ACK with retransmission on timeout. It ends on
 // success, on the client's ERROR, after tftpRetries resends, after limits.Idle without a new ACK, or after limits.Lifetime.
-func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[string]string) (int64, error) {
+func (t *tftpServer) transfer(c tftpConn, f io.Reader, size int64, opts map[string]string) (int64, error) {
 	blk := tftpDefaultBlk
 	timeout := t.timeout
 	start := time.Now()
@@ -326,12 +357,21 @@ func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[
 			addOpt("timeout", strconv.Itoa(n))
 		}
 	}
+	// send bounds every write by WriteTimeout (and the lifetime); a failed or timed-out write ends the transfer.
+	send := func(pkt []byte) error {
+		if time.Now().After(end) {
+			return errors.New("transfer lifetime exceeded")
+		}
+		_ = c.SetWriteDeadline(earliest(time.Now().Add(t.limits.WriteTimeout), end))
+		_, err := c.Write(pkt)
+		return err
+	}
 	rbuf := make([]byte, 1500)
 	// sendWait sends pkt and waits for ACK of block want, resending on timeout. Duplicate older ACKs are ignored rather than
 	// answered (no Sorcerer's Apprentice).
 	sendWait := func(pkt []byte, want uint16) error {
 		for try := 0; try <= tftpRetries; try++ {
-			if _, err := c.Write(pkt); err != nil {
+			if err := send(pkt); err != nil {
 				return err
 			}
 			deadline := time.Now().Add(timeout)
@@ -383,7 +423,7 @@ func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[
 	for block := uint16(1); ; block++ { // wraps to 0 after 65535, as common clients expect
 		n, err := io.ReadFull(f, pkt[4:])
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-			_, _ = c.Write(tftpErrorPkt(tftpErrUndef, "read error"))
+			_ = send(tftpErrorPkt(tftpErrUndef, "read error"))
 			return sent, err
 		}
 		binary.BigEndian.PutUint16(pkt[2:], block)

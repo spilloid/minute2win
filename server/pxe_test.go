@@ -381,7 +381,8 @@ func TestLogLimiter(t *testing.T) {
 	l.logf("notarmed:b", "b")
 	now = now.Add(61 * time.Second)
 	l.logf("notarmed:a", "a")
-	if strings.Join(lines, ",") != "a,b,a" {
+	// The four repeats of "a" are counted and announced (the notice costs a token like any line) before "b".
+	if strings.Join(lines, ",") != "a,pxe: 4 policy log line(s) suppressed (repeats within 1m0s, or over the rate limit),b,a" {
 		t.Fatalf("lines %v", lines)
 	}
 }
