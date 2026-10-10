@@ -91,3 +91,5 @@ Every finding is reproduced against source before it is accepted (corporate-stra
   sat inside `for a in $(gh ...)`, where a failure does not trip `set -e`, so a failed listing went on to upload. Fixed with a checked
   assignment; `tests/release_workflow_test.py` now executes the real allowlist and upload steps (extracted from the YAML) against a mock `gh`
   and runs in CI.
+- Round 3 (astra, vendored codex 0.162.1): finding #3 **CLOSED**, no new High/Critical, **SIGN-OFF: yes.** The Azure setup and the signing-check
+  workflow still have not been run (kubert's `az` login must be refreshed), so the signed-release path is reviewed and fails closed, but unproven.
