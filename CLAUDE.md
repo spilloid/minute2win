@@ -28,7 +28,7 @@ Stable latest, always (operator preference): CI and releases build with `go-vers
 | `tests/run.sh` | Pester + PSScriptAnalyzer in podman (no pwsh on the Linux host) |
 | `cd server && go vet ./... && go test ./...` | Server rules |
 | `tests/ui/run.sh [dir]` | Playwright: arm, boot, report, disarm, phone width, light/dark; look at the screenshots |
-| `tests/pxe/pxe-lan.sh` | Built-in PXE on a simulated LAN in podman: separate DHCP server, QEMU (BIOS iPXE ROM) twice; from tcpdump captures: boot 1 answered and arm consumed, boot 2's PXE DISCOVER seen and not answered |
+| `tests/pxe/pxe-lan.sh` | Built-in PXE on a simulated LAN in podman: separate DHCP server, QEMU (BIOS iPXE ROM) three times; from tcpdump captures (no drops): boot 1 answered and arm consumed, boot 2's PXE DISCOVER seen and not answered, boot 3 re-armed and answered again (positive control) |
 | `tests/vm/deploy-vm.sh` | Full chain in a VM (needs staged files uploaded, `localhost/win11-qemu`, ~40 GB free) |
 
 Process: corporate-strategy standards. STD-001 (an astra review of non-trivial diffs, logged in `docs/dev-process.md`),
@@ -58,3 +58,6 @@ STD-008 (UI capture and overflow).
   network boot, so (1) has not run anywhere.
 - 2026-10-10: Built-in PXE on Windows only builds; nothing PXE has run on Windows. It can't learn the receiving interface there, so it
   needs one IPv4 address or `-pxe-ip`.
+- 2026-10-10: The built-in PXE's write deadlines and log budgets were tested only with fakes and a simulated clock (a blocking
+  connection, an injected writer); the capture-drop check in `tests/pxe/pxe-lan.sh` has only ever seen 0 drops, so its failure path
+  has not run.

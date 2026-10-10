@@ -1,8 +1,9 @@
-//go:build !windows && !darwin && !freebsd && !netbsd && !openbsd && !(linux && (amd64 || arm64 || 386 || arm || riscv64 || ppc64le || s390x || loong64))
+//go:build !windows && !darwin && !freebsd && !netbsd && !(linux && (amd64 || arm64 || 386 || arm || riscv64 || ppc64le || s390x || loong64))
 
 package main
 
-// Every other GOOS/GOARCH: the server builds and runs, but -pxe refuses to start (StartPXE checks pxePlatformOK), because the
+// Every other GOOS/GOARCH (OpenBSD included: there "[::]" is not dual-stack, so a wildcard -listen would not reach IPv4 PXE
+// clients): the server builds and runs, but -pxe refuses to start (StartPXE checks pxePlatformOK), because the
 // socket options it needs have not been written or tested here.
 
 import (

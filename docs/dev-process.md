@@ -142,3 +142,21 @@ Two planted bugs did not fail a test, and both were redundant checks rather than
 refuses a swapped name). With both halves removed, each is caught.
 Still not verified: everything listed in CLAUDE.md for real PXE firmware (UEFI and BIOS firmware PXE, TFTP to a real client, Secure
 Boot, Windows).
+
+### PXE adversarial review round 2
+
+astra re-checked round 1: findings 1-3 and 5-11 **closed**, #4 not fully. It also confirmed new gaps in the fixes. The orchestrator
+accepted all of them (A-F). As before, each fix has a test that fails when the old behaviour is planted back.
+
+| # | Finding | Change | Planted-back check |
+|---|---|---|---|
+| A | TFTP writes had no deadline: a blocked UDP write bypassed the lifetime/idle limits, including the listener's refusals | Every write (DATA, OACK, ERROR, refusals) goes through a 2 s write deadline (capped by the lifetime); a failed or timed-out write ends the transfer and frees its slot. Transfer and listener sockets are injectable for tests | A connection whose writes block until their deadline: the slot is freed within the lifetime, and a blocked refusal doesn't stall the listener. Without the deadlines: both fail |
+| B | Log injection via error text: `%q` on the name, but the `*PathError` (which holds the raw name) printed with `%v`. The round 1 test used a name with `:`, which is refused before the filesystem lookup | `errText` (strconv.Quote) for every logged error; every log call in pxe/tftp/dhcp re-checked: the rest are Go-formatted addresses, MACs formatted from bytes, or messages built from quoted parts | A nonexistent `"x\nFORGED ..."` reaches the lookup; no raw newline in any line. Old `%v`: fails. Round 1 test kept |
+| C | One shared log budget: noise could starve offers; a budget-dropped line still stamped its key; repeats not counted; the notice was free | Two classes: policy (offers/ACKs, send failures, local errors) 20/s burst 50; noise (malformed, unarmed MACs, which a spoofer can invent at will, and every TFTP line) 5/s burst 20. Stamp the key only when a line is printed; count repeats too; the notice costs a token. Hard key cap kept | Starvation, retry-after-drop, exact suppressed counts with refill, output bound under alternating repeats and new keys. One shared bucket, early stamping, uncounted repeats, a free notice: each fails |
+| D | `-pxe-ip` returned early and skipped reachability, so `-listen 127.0.0.1:8080 -pxe-ip <LAN>` advertised an unreachable URL | `pxeHTTPTarget` validates: a specific IPv4 bind must equal `-pxe-ip`; loopback, `[::1]` and IPv6-specific binds are refused with `-pxe`; on a wildcard bind `-pxe-ip` must be a unicast IPv4 address, with a warning if it isn't local. `[::]` is treated as dual-stack; OpenBSD (where it isn't) moved to the platforms where `-pxe` refuses to start | 17-row table plus real listeners (loopback with a LAN `-pxe-ip`, wildcard `:0`, `[::1]`). The old early return, a missing mismatch check and a missing warning: each fails |
+| E | `pxe-lan.sh` could still falsely pass: process existence isn't responder health, and tcpdump's stderr (drops, errors) was discarded | Boot 3 after re-arming must be answered and must consume the new arm (positive control). Each capture must say it was listening and exit with "0 packets dropped by kernel" and no other messages | Run: PASS (`boot1 replies=2`, `boot2 discover=2 replies=0`, `boot3 discover=1 replies=1`). A responder planted to wedge after its first offer passes boots 1-2 and fails at boot 3. The drop check has only seen 0 drops; its failure path has not run |
+| F | Tests too weak: the symlink race allowed zero successful fetches; no expiry between the two arm checks; no listener tests for a mismatched `-pxe-ip` or an IPv6-only bind | Symlink race must both serve and refuse (it ran up to 3000 fetches); the recheck test gains an arm that expires between the checks; real-listener tests in D | A recheck that skips expiry fails; with every open refused, the symlink test now fails instead of passing vacuously |
+
+Remaining gaps: write deadlines and log budgets were tested with fakes and a simulated clock, not under real socket pressure; the
+capture-drop failure path is untested; and everything listed in CLAUDE.md for real PXE firmware (UEFI and BIOS firmware PXE, TFTP to a
+real client, Secure Boot, Windows) is still UNVERIFIED.

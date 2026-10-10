@@ -23,6 +23,10 @@
   (none by default) instead of the x64 file; options 93/94 are echoed; TFTP opens through `os.Root`, refuses all symlinks, caps
   transfers per client IP and their lifetime/idle time, accepts `timeout` only from 1 to 10 s, ignores duplicate requests, and stops
   promptly on shutdown; logging has a hard key cap and a global rate budget; unsupported platforms build but refuse `-pxe`.
+- Built-in PXE, second review round: every TFTP send has a write deadline and a failed send frees the slot; error text is logged
+  quoted; logging has separate budgets for policy lines and network noise, and suppressed lines are counted; `-pxe-ip` must be
+  reachable on the HTTP listener (a specific bind must match it; loopback and IPv6-specific binds are refused with `-pxe`); OpenBSD
+  joins the platforms where `-pxe` refuses to start. The LAN harness gained a re-armed third boot as a positive control.
   Status: unit-tested and run once in a QEMU VM on a simulated LAN (BIOS iPXE stage, `tests/pxe/pxe-lan.sh`); never run on real PXE
   firmware, UEFI firmware PXE + TFTP, or Secure Boot.
 

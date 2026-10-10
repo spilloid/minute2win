@@ -100,8 +100,12 @@ sudo ./minute2win-server -manifests ../manifests -pxe -pxe-dir /srv/ipxe      # 
   MAC comes from the packet.
 - **Which address it advertises:** on Linux, the address of the interface the request arrived on (and the broadcast reply leaves on
   that interface). Elsewhere, the host's only IPv4 address; with several, it refuses to start until you set `-pxe-ip`. `-pxe-ip`
-  always overrides (siaddr and the iPXE URL). If `-listen` names one IPv4 address, that address is advertised (HTTP answers nowhere
-  else); a loopback or IPv6-only `-listen` with `-pxe` is refused at startup.
+  sets siaddr and the iPXE URL, but it must be reachable on the HTTP listener, or startup is refused:
+  - `-listen` on one IPv4 address: that address is advertised, and `-pxe-ip`, if given, must be the same address.
+  - `-listen` on loopback, `[::1]` or any specific IPv6 address: refused with `-pxe` (PXE clients are IPv4 and remote).
+  - `-listen` on all addresses (`:8080`, `0.0.0.0`, `[::]`): any `-pxe-ip` is accepted, with a warning if it isn't one of this host's
+    addresses (fine behind forwarding, wrong otherwise). `[::]` is dual-stack on the supported platforms (Linux, Windows, macOS,
+    FreeBSD, NetBSD); that is not true on OpenBSD, which is why the built-in PXE is not offered there.
 - **Where replies go:** to the relay (`giaddr`) if relayed; to the client's address if it already has one; otherwise broadcast to
   port 68, since there is no offered address to unicast to. Port 4011 replies go back to the sender.
 
@@ -120,7 +124,7 @@ port and why. If another process holds UDP 67 (dnsmasq or another DHCP server on
 run minute2win on another host. UDP 67 is opened with `SO_REUSEADDR`/`SO_REUSEPORT` so it can share the port with a listener that
 allows sharing, but don't run two PXE answerers for the same clients.
 
-**Platforms.** The PXE sockets are written for Windows, macOS, FreeBSD, NetBSD, OpenBSD and Linux on amd64, arm64, 386, arm,
+**Platforms.** The PXE sockets are written for Windows, macOS, FreeBSD, NetBSD and Linux on amd64, arm64, 386, arm,
 riscv64, ppc64le, s390x and loong64. The server builds everywhere else too, but `-pxe` refuses to start there with an error saying so.
 
 **Built-in or dnsmasq?** Use `-pxe` when minute2win-server is the only boot service on the segment and you want one binary. Keep dnsmasq
@@ -137,13 +141,16 @@ have, the log shows `tftp: ... refused "<name>"`.
 **Security.** TFTP has no authentication and can't know which MAC is asking, so anyone who can reach UDP 69 can download anything in
 `-pxe-dir`. Keep only the public iPXE binaries there. Files are opened through `os.Root`, so the directory confines the open itself.
 TFTP use is bounded: at most 64 transfers at once and 4 per client IP, each ended after 60 s or 20 s without progress, and a client's
-`timeout` option is honoured only from 1 to 10 s. Logging is bounded as well (one line per client/file per minute, at most about 20
-lines a second overall), and names from the wire are logged quoted. The guard is still the arm: a machine that isn't armed gets no proxyDHCP answer,
+`timeout` option is honoured only from 1 to 10 s. Every TFTP send has a 2 s write deadline, and a send that fails or times out ends
+that transfer, so a stuck socket can't hold a slot. Logging is bounded as well: one line per client/file per minute, and two separate
+budgets so noise can't drown out what matters: offers and local errors get about 20 lines a second, while things any host can trigger
+(malformed packets, unarmed MACs, every TFTP line) get about 5. Dropped lines are counted and reported as "N ... log line(s)
+suppressed". Anything from the wire, including error text, is logged quoted. The guard is still the arm: a machine that isn't armed gets no proxyDHCP answer,
 and the boot script still comes from `/boot/{mac}`.
 
 **Status: unit-tested; seen working only in a QEMU VM on a simulated LAN (BIOS iPXE stage); never run on real PXE firmware.**
-`tests/pxe/pxe-lan.sh` checks, from packet captures, that boot 1's PXE DISCOVER is answered and the arm consumed, and that boot 2's
-PXE DISCOVER gets no reply. See CLAUDE.md for what is still unrun.
+`tests/pxe/pxe-lan.sh` checks, from packet captures with no drops, that boot 1's PXE DISCOVER is answered and the arm consumed,
+that boot 2's PXE DISCOVER gets no reply, and (positive control) that after re-arming, boot 3 is answered and consumes the new arm. See CLAUDE.md for what is still unrun.
 
 ## Windows
 
