@@ -55,4 +55,6 @@ jobs:
           exclude-interactive-browser-credential: true
       - name: Verify
         shell: pwsh
-        run: ./scripts/verify-signature.ps1 -Files check/minute2win-server.exe -ExpectedSubject '${{ vars.SIGNING_EXPECTED_SUBJECT }}'
+        env:
+          SIGNING_EXPECTED_SUBJECT: ${{ vars.SIGNING_EXPECTED_SUBJECT }}
+        run: ./scripts/verify-signature.ps1 -Files check/minute2win-server.exe -ExpectedSubject $env:SIGNING_EXPECTED_SUBJECT

@@ -38,3 +38,15 @@ Prerequisite (already true for the studio): a signing account with an **Active**
 
 Why two scripts: so no GitHub token has to be copied onto the machine that holds the `az` login. Both are idempotent.
 If signing is not configured, `release.yml` fails before signing and attaches **nothing**: a release is never published unsigned.
+
+## Who can start a signing run (tag protection)
+
+A `v*` tag push starts `release.yml`, and the `release` environment allows `main` and `v*` tags, so whoever can push a tag can start a
+signing run. Controls in place: the build job refuses any tag whose commit is not on `main` and pins that commit for the signing job
+(a tag on an unreviewed commit cannot be built or signed); the tag is resolved under `refs/tags/` so a branch of the same name cannot
+stand in for it; and only the signing job holds the OIDC identity. **Known gap:** GitHub tag rulesets (restricting who may create or
+move `v*` tags) are not available on a private repo on the free plan (HTTP 403 when tried 2026-10-10). Because the workflow file
+itself comes from the tagged commit, an attacker with write access could push a tag on a commit that edits the workflow. Today
+the only writer is the owner. **Before anyone else gets write access, or if the repo goes public, enable a ruleset** for
+`refs/tags/v*` (restrict creation, update and deletion to admins). The release also only ever writes a **draft** and refuses to touch a
+published release.

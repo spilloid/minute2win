@@ -15,28 +15,59 @@ on:
 permissions:
   contents: read
 
+# One release run per tag at a time: two runs must never interleave their uploads.
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build (Linux and unsigned Windows server, boot files)
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
+      sha: ${{ steps.pin.outputs.sha }}
     steps:
+      # The tag is attacker-influenced text (the manual input), so it never reaches a shell as source: it comes in through env,
+      # must match a strict version pattern, and only then becomes an output.
       - id: meta
-        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG_INPUT: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="${TAG_INPUT:-$REF_NAME}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a release tag: refusing" >&2; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      # refs/tags/ explicitly: actions/checkout otherwise prefers a BRANCH of the same name, which would let a pushed branch called
+      # v0.1.0 stand in for the tag and run its own scripts inside the signing job.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.meta.outputs.tag }}
+          ref: refs/tags/${{ steps.meta.outputs.tag }}
+          fetch-depth: 0
+      # A release is built only from code that is on main (reviewed, merged). A tag on any other commit is refused, and the
+      # resolved commit is pinned for every later job.
+      - name: Tag must point at a commit on main; pin it
+        id: pin
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor HEAD FETCH_HEAD || { echo "the tag's commit is not on main: refusing to build or sign it" >&2; exit 1; }
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v5
         with:
           go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
           cache: false
       - name: Check the tag against VERSION
-        run: test "v$(cat VERSION)" = "${{ steps.meta.outputs.tag }}"
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: test "v$(cat VERSION)" = "$TAG"
       - name: Build
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
           set -euo pipefail
-          TAG="${{ steps.meta.outputs.tag }}"; V="${TAG#v}"; mkdir -p out stage-win/minute2win-server
+          V="${TAG#v}"; mkdir -p out stage-win/minute2win-server
           for arch in amd64 arm64; do
             d="minute2win-server-$V-linux-$arch"; mkdir -p "$d"
             (cd server && CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "../$d/minute2win-server" .)
@@ -72,9 +103,10 @@ jobs:
     env:
       TAG: ${{ needs.build.outputs.tag }}
     steps:
+      # The exact commit the build job validated (on main), not a ref that could have moved or been shadowed since.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.build.outputs.tag }}
+          ref: ${{ needs.build.outputs.sha }}
       # Fail before signing anything, and never fall back to an unsigned release.
       - name: Check signing configuration
         shell: pwsh
@@ -127,7 +159,9 @@ jobs:
           exclude-interactive-browser-credential: true
       - name: Verify the signature and timestamp
         shell: pwsh
-        run: ./scripts/verify-signature.ps1 -Files stage-win/minute2win-server/minute2win-server.exe -ExpectedSubject '${{ vars.SIGNING_EXPECTED_SUBJECT }}'
+        env:
+          SIGNING_EXPECTED_SUBJECT: ${{ vars.SIGNING_EXPECTED_SUBJECT }}
+        run: ./scripts/verify-signature.ps1 -Files stage-win/minute2win-server/minute2win-server.exe -ExpectedSubject $env:SIGNING_EXPECTED_SUBJECT
       - name: Zip, record signatures
         shell: pwsh
         run: |
@@ -162,14 +196,39 @@ jobs:
         with:
           name: signed-windows
           path: assets
+      # Only the expected assets can ever be attached: an unexpected file in any artifact fails the run instead of shipping.
+      - name: Allowlist the asset set
+        working-directory: assets
+        run: |
+          set -euo pipefail
+          V="${TAG#v}"
+          expected="SIGNATURES.txt
+          minute2win-$V-bootfiles.zip
+          minute2win-server-$V-linux-amd64.tar.gz
+          minute2win-server-$V-linux-arm64.tar.gz
+          minute2win-server-$V-windows-x64.zip"
+          expected="$(printf '%s\n' "${expected//  /}" | sort)"
+          actual="$(find . -maxdepth 1 -type f -printf '%f\n' | sort)"
+          [ "$expected" = "$actual" ] || { printf 'unexpected asset set.\nexpected:\n%s\nactual:\n%s\n' "$expected" "$actual" >&2; exit 1; }
       - name: Checksums
         working-directory: assets
         run: |
-          ls -l
-          sha256sum $(ls | grep -v -e '^SHA256SUMS$') > SHA256SUMS
+          set -euo pipefail
+          sha256sum ./* > SHA256SUMS
           sha256sum --check --strict SHA256SUMS
-      - name: Upload
+      # Assets are only ever (re)written while the release is a DRAFT, and the draft's whole asset set is replaced, so a rerun can
+      # never leave a published release half-updated or mixed with leftovers. Publishing stays a deliberate, manual step.
+      - name: Upload to a draft release
         working-directory: assets
         run: |
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "minute2win ${TAG#v}" --notes "Draft: notes to follow."
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber *
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)" = "true" ] \
+              || { echo "release $TAG is already published; refusing to modify it. Cut a new patch version." >&2; exit 1; }
+            for a in $(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name'); do
+              gh release delete-asset "$TAG" "$a" --repo "$GITHUB_REPOSITORY" --yes
+            done
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "minute2win ${TAG#v}" --notes "Draft: notes to follow."
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" ./*

@@ -43,10 +43,19 @@ jobs:
           python -m playwright install --with-deps chromium
           cd server && go build -o /tmp/m2w . && cd ..
           /tmp/m2w -listen 127.0.0.1:18080 -manifests manifests -data "" &
-          for i in $(seq 50); do curl -sf http://127.0.0.1:18080/api/state >/dev/null && break; sleep 0.1; done
+          for _ in $(seq 50); do curl -sf http://127.0.0.1:18080/api/state >/dev/null && break; sleep 0.1; done
           mkdir -p shots && python tests/ui/test_ui.py http://127.0.0.1:18080 shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ui-screenshots
           path: shots/
+  scripts:
+    name: Workflow lint and script tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint (workflow syntax, expressions, shellcheck on run blocks)
+        run: docker run --rm -v "$PWD":/repo -w /repo docker.io/rhysd/actionlint:latest -color
+      - name: GitHub setup script, against a fake gh
+        run: tests/setup-signing-github.test.sh

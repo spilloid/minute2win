@@ -8,6 +8,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -15,7 +16,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -65,11 +65,19 @@ func openBrowser(url string) {
 	}
 }
 
-// lanURLs lists the addresses a target on the network can reach this server at, for the iPXE chain line.
-func lanURLs(listen string) []string {
-	_, port, err := net.SplitHostPort(listen)
-	if err != nil {
+// lanURLs lists the addresses a target can reach this server at, for the iPXE chain line. It works from the address actually
+// bound: a specific IP is the only one advertised; a wildcard bind lists every non-loopback IPv4 address of this machine.
+func lanURLs(bound net.Addr) []string {
+	tcp, ok := bound.(*net.TCPAddr)
+	if !ok {
 		return nil
+	}
+	port := fmt.Sprint(tcp.Port)
+	if tcp.IP != nil && !tcp.IP.IsUnspecified() {
+		if tcp.IP.IsLoopback() {
+			return nil
+		}
+		return []string{"http://" + net.JoinHostPort(tcp.IP.String(), port)}
 	}
 	var out []string
 	addrs, _ := net.InterfaceAddrs()
@@ -105,12 +113,12 @@ func main() {
 		log.Print("warning: M2W_TOKEN is not set; anyone who can reach this server can arm a machine for a wipe")
 	}
 	log.Printf("minute2win-server on %s, manifests %s, images %s", *listen, *manifests, *base)
-	for _, u := range lanURLs(*listen) {
-		log.Printf("targets chain: %s/boot/${net0/mac}", strings.TrimRight(u, "/"))
-	}
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
 		log.Fatal(err)
+	}
+	for _, u := range lanURLs(ln.Addr()) {
+		log.Printf("targets chain: %s/boot/${net0/mac}", u)
 	}
 	if *open {
 		openBrowser(browserURL(*listen))

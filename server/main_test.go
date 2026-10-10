@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,5 +30,23 @@ func TestFindManifests(t *testing.T) {
 	}
 	if got := findManifests(""); got != "manifests" {
 		t.Fatalf("./manifests not preferred: %s", got)
+	}
+}
+
+func TestLanURLsRespectTheBoundAddress(t *testing.T) {
+	specific := lanURLs(&net.TCPAddr{IP: net.ParseIP("192.168.1.50"), Port: 8080})
+	if len(specific) != 1 || specific[0] != "http://192.168.1.50:8080" {
+		t.Fatalf("a specific bind should advertise only that address: %v", specific)
+	}
+	if got := lanURLs(&net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080}); len(got) != 0 {
+		t.Fatalf("a loopback bind is unreachable from targets, advertise nothing: %v", got)
+	}
+	for _, u := range lanURLs(&net.TCPAddr{IP: net.IPv4zero, Port: 18080}) {
+		if u == "" || u[len(u)-6:] != ":18080" {
+			t.Fatalf("wildcard bind must use the bound port: %v", u)
+		}
+	}
+	if got := lanURLs(&net.UnixAddr{Name: "x", Net: "unix"}); got != nil {
+		t.Fatalf("non-TCP address: %v", got)
 	}
 }

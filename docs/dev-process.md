@@ -64,3 +64,25 @@ Every finding is reproduced against source before it is accepted (corporate-stra
   still persists), so a restart can only mean "re-arm what you still want". Test reproduces the exact sequence. Round 5 checks only this.
 - Round 5 (astra): **CLOSED, SIGN-OFF: yes.** No new High/Critical. astra could not run the tests (read-only sandbox); the orchestrator ran them (below).
 - Not verified: anything booted (WinPE, the engine on a real disk, SetupComplete, OOBE), and real hardware.
+
+## 2026-10-10 — Windows build and signed-release pipeline (PR #3)
+
+- Asked: a Windows client like PartnerCenterBridge's; strong CI/CD; signing set up through kubert.
+- Found on inspection: signing here is Azure Artifact Signing over OIDC (D-0047), not keys on kubert; STD-006 forbids keys in CI. kubert
+  holds an `az` login (its cached token has expired, so the Azure half is **not run yet**) but its `gh` token is invalid. So the
+  setup script was split into an Azure half and a GitHub half and no GitHub token is copied to kubert.
+- Verified by running: `go vet`, `go test -race`, Windows/arm64 cross-builds, CI green, actionlint clean, a mocked-`gh` test of
+  the GitHub setup script (which fails on the pre-fix script, as it should), the asset allowlist step run against good and bad sets.
+- Adversarial review round 1 (astra, 65k tokens), 6 findings, all confirmed:
+
+| # | Sev | Finding | Verdict |
+|---|---|---|---|
+| 1 | High | Shell injection through the manual `tag` input (`v0.1.0$(...)` executed while producing a valid-looking tag) | **Confirmed** (astra reproduced it). Fixed: values enter through `env`, a strict `^v[0-9]+\.[0-9]+\.[0-9]+$` check, no expression interpolation into `run:` source |
+| 2 | High | `actions/checkout` prefers a branch over a tag of the same name: a pushed branch `v0.1.0` could run its own scripts inside the signing job | **Confirmed.** Fixed: checkout `refs/tags/<tag>`, require the commit to be an ancestor of `main`, pin the SHA for the sign job |
+| 3 | Med | Reruns could rewrite a published release (`--clobber`) and leave a mixed asset set | **Confirmed.** Fixed: per-tag concurrency, refuse a published release, replace a draft's whole asset set, allowlist the exact files |
+| 4 | Med | Setup script compared rule names as regexes (`v*`): reruns recreated rules and deleted wanted ones | **Confirmed** (reproduced). Fixed: exact `(type, name)` matching in jq; test added |
+| 5 | Med | A failed `gh variable/secret set` still printed "Done" | **Confirmed.** Fixed: every write checked; test added |
+| 6 | Low | Advertised LAN URLs ignored the bound address | **Confirmed.** Fixed: derived from the bound address; test added |
+
+- Not verified: the Azure setup and the `signing check` workflow have **not been run**; no signed binary exists yet; the Windows
+  exe has never run on Windows.

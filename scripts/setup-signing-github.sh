@@ -25,23 +25,35 @@ case "$cmd" in
     env="$(jq -r .environment <<<"$in")"
     [ "$(jq -r .repo <<<"$in")" = "$REPO" ] || { echo "result is for $(jq -r .repo <<<"$in"), not $REPO" >&2; exit 1; }
     gh api --method PUT "repos/$REPO/environments/$env" --input - >/dev/null <<<'{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
-    have="$(gh api "repos/$REPO/environments/$env/deployment-branch-policies" -q '.branch_policies[] | "\(.type) \(.name) \(.id)"')"
-    want=$( { jq -r '.deploymentBranches[] | "branch " + .' <<<"$in"; jq -r '.deploymentTags[] | "tag " + .' <<<"$in"; } )
-    while read -r t n; do
-      grep -qx "$t $n [0-9]*" <<<"$have" && { echo "already allowed: $t $n"; continue; }
-      jq -nc --arg n "$n" --arg t "$t" '{name:$n,type:$t}' | gh api --method POST "repos/$REPO/environments/$env/deployment-branch-policies" --input - >/dev/null
-      echo "allowed: $t $n"
-    done <<<"$want"
-    while read -r t n id; do
-      [ -z "$t" ] && continue
-      grep -qx "$t $n" <<<"$want" || { gh api --method DELETE "repos/$REPO/environments/$env/deployment-branch-policies/$id" >/dev/null; echo "removed stale rule: $t $n"; }
-    done <<<"$have"
+    # Reconcile the allowed refs with exact (type, name) equality, as JSON: a name like "v*" is a literal here, not a pattern.
+    have="$(gh api "repos/$REPO/environments/$env/deployment-branch-policies" | jq -c '[.branch_policies[] | {type, name, id}]')"
+    want="$(jq -c '[(.deploymentBranches[] | {type:"branch", name:.}), (.deploymentTags[] | {type:"tag", name:.})]' <<<"$in")"
+    while IFS= read -r rule; do
+      if jq -e --argjson r "$rule" 'any(.[]; .type == $r.type and .name == $r.name)' <<<"$have" >/dev/null; then
+        echo "already allowed: $(jq -r '.type + " " + .name' <<<"$rule")"
+      else
+        gh api --method POST "repos/$REPO/environments/$env/deployment-branch-policies" --input - <<<"$rule" >/dev/null \
+          || { echo "could not allow $rule" >&2; exit 1; }
+        echo "allowed: $(jq -r '.type + " " + .name' <<<"$rule")"
+      fi
+    done < <(jq -c '.[]' <<<"$want")
+    while IFS= read -r rule; do
+      if ! jq -e --argjson r "$rule" 'any(.[]; .type == $r.type and .name == $r.name)' <<<"$want" >/dev/null; then
+        gh api --method DELETE "repos/$REPO/environments/$env/deployment-branch-policies/$(jq -r .id <<<"$rule")" >/dev/null \
+          || { echo "could not remove stale rule $rule" >&2; exit 1; }
+        echo "removed stale rule: $(jq -r '.type + " " + .name' <<<"$rule")"
+      fi
+    done < <(jq -c '.[]' <<<"$have")
+    # Every write is checked: a failed variable or secret must fail the script, never print "Done".
     for k in $(jq -r '.variables | keys[]' <<<"$in"); do
       v="$(jq -r --arg k "$k" '.variables[$k]' <<<"$in")"
-      [ -n "$v" ] && gh variable set "$k" --env "$env" --repo "$REPO" --body "$v" >/dev/null && echo "variable $k"
+      [ -n "$v" ] || continue
+      if ! gh variable set "$k" --env "$env" --repo "$REPO" --body "$v" >/dev/null; then echo "could not set variable $k" >&2; exit 1; fi
+      echo "variable $k"
     done
     for k in $(jq -r '.secrets | keys[]' <<<"$in"); do
-      jq -r --arg k "$k" '.secrets[$k]' <<<"$in" | tr -d '\n' | gh secret set "$k" --env "$env" --repo "$REPO" >/dev/null && echo "secret   $k"
+      if ! jq -j --arg k "$k" '.secrets[$k]' <<<"$in" | gh secret set "$k" --env "$env" --repo "$REPO" >/dev/null; then echo "could not set secret $k" >&2; exit 1; fi
+      echo "secret   $k"
     done
     echo "Done. Nothing has been signed yet; prove it with the signing-check workflow before tagging."
     ;;
