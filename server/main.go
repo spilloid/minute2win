@@ -4,6 +4,9 @@
 //
 // Targets' iPXE (dnsmasq dhcp-boot, or a USB boot drive's autoexec) runs: chain http://<this>:8080/boot/${net0/mac}
 // Set M2W_TOKEN to require a token for arming and disarming.
+//
+// With -pxe -pxe-dir <folder of iPXE binaries> it also answers PXE itself (proxyDHCP + read-only TFTP), for ARMED MACs only,
+// so no dnsmasq is needed. See README "Built-in PXE".
 package main
 
 import (
@@ -16,6 +19,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -96,6 +100,15 @@ func main() {
 	base := flag.String("image-base", "https://boot.spillerstech.us/windows11", "URL holding wimboot, BCD, boot.sdi and boot.wim")
 	ttl := flag.Duration("arm-ttl", 2*time.Hour, "an arm that no machine boots within this long expires")
 	open := flag.Bool("open", runtime.GOOS == "windows", "open the web UI in a browser on start (default on Windows, so double-clicking works)")
+	pxe := flag.Bool("pxe", false, "also answer PXE: proxyDHCP (UDP 67, 4011) and read-only TFTP (UDP 69), for armed MACs only")
+	pxeDir := flag.String("pxe-dir", "", "with -pxe: folder holding the iPXE binaries to serve over TFTP (required)")
+	pxeIP := flag.String("pxe-ip", "", "with -pxe: IPv4 address to advertise to PXE clients (default: the receiving interface's)")
+	pxeX64 := flag.String("pxe-file-x64", "ipxe.efi", "with -pxe: boot file for x86/x64 UEFI (arch 6, 7, 9); BOOTX64.EFI for a signed shim chain")
+	pxeBIOS := flag.String("pxe-file-bios", "undionly.kpxe", "with -pxe: boot file for BIOS (arch 0)")
+	pxeARM := flag.String("pxe-file-arm64", "ipxe-arm64.efi", "with -pxe: boot file for arm64 UEFI (arch 11)")
+	pxeDHCP := flag.Int("pxe-dhcp-port", 67, "with -pxe: proxyDHCP broadcast port")
+	pxeProxy := flag.Int("pxe-proxy-port", 4011, "with -pxe: proxyDHCP request port")
+	pxeTFTP := flag.Int("pxe-tftp-port", 69, "with -pxe: TFTP port")
 	flag.Parse()
 	*manifests = findManifests(*manifests)
 
@@ -111,6 +124,25 @@ func main() {
 	}
 	if s.Token == "" {
 		log.Print("warning: M2W_TOKEN is not set; anyone who can reach this server can arm a machine for a wipe")
+	}
+	if *pxe {
+		cfg := PXEConfig{DHCPPort: *pxeDHCP, ProxyPort: *pxeProxy, TFTPPort: *pxeTFTP, ClientPort: 68, Dir: *pxeDir,
+			FileX64: *pxeX64, FileBIOS: *pxeBIOS, FileARM64: *pxeARM}
+		_, port, err := net.SplitHostPort(*listen)
+		if err != nil {
+			log.Fatalf("pxe: cannot read the HTTP port from -listen %q: %v", *listen, err)
+		}
+		if cfg.HTTPPort, err = strconv.Atoi(port); err != nil {
+			log.Fatalf("pxe: -listen %q needs a numeric port for the iPXE boot URL", *listen)
+		}
+		if *pxeIP != "" {
+			if cfg.AdvertiseIP = net.ParseIP(*pxeIP).To4(); cfg.AdvertiseIP == nil {
+				log.Fatalf("pxe: -pxe-ip %q is not an IPv4 address", *pxeIP)
+			}
+		}
+		if _, err := s.StartPXE(cfg); err != nil {
+			log.Fatal(err)
+		}
 	}
 	log.Printf("minute2win-server on %s, manifests %s, images %s", *listen, *manifests, *base)
 	ln, err := net.Listen("tcp", *listen)
