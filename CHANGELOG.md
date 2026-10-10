@@ -12,6 +12,24 @@
   that no GitHub token has to be on the machine that holds the `az` login).
 - CI cross-compiles for Windows and arm64 on every PR and runs the Go tests with the race detector.
 
+- Built-in PXE front end for `minute2win-server`, opt-in with `-pxe` (off by default): a proxyDHCP responder (UDP 67 and 4011) and a
+  read-only TFTP server (UDP 69, `-pxe-dir`), so the deploy server needs no dnsmasq. It never offers an address or lease options, and
+  it answers only armed MACs: unarmed machines get silence and boot their disk, and once `/boot` consumes the arm the machine gets no
+  more offers. Boot file by client architecture (`-pxe-file-x64`, `-pxe-file-bios`, `-pxe-file-arm64`); a client that is already iPXE
+  gets the `/boot/<mac>` URL instead of iPXE again. Clear startup errors for privileged ports and for a port another DHCP server holds.
+  Standard library only (no new dependencies). No iPXE binary is included: point `-pxe-dir` at your own.
+- Built-in PXE hardened after adversarial review: the armed check is repeated just before each reply; DHCP option overload is read;
+  the iPXE URL uses the HTTP listener's real port and its bound address; 32-bit x86 UEFI (arch 6) gets only the new `-pxe-file-ia32`
+  (none by default) instead of the x64 file; options 93/94 are echoed; TFTP opens through `os.Root`, refuses all symlinks, caps
+  transfers per client IP and their lifetime/idle time, accepts `timeout` only from 1 to 10 s, ignores duplicate requests, and stops
+  promptly on shutdown; logging has a hard key cap and a global rate budget; unsupported platforms build but refuse `-pxe`.
+- Built-in PXE, second review round: every TFTP send has a write deadline and a failed send frees the slot; error text is logged
+  quoted; logging has separate budgets for policy lines and network noise, and suppressed lines are counted; `-pxe-ip` must be
+  reachable on the HTTP listener (a specific bind must match it; loopback and IPv6-specific binds are refused with `-pxe`); OpenBSD
+  joins the platforms where `-pxe` refuses to start. The LAN harness gained a re-armed third boot as a positive control.
+  Status: unit-tested and run once in a QEMU VM on a simulated LAN (BIOS iPXE stage, `tests/pxe/pxe-lan.sh`); never run on real PXE
+  firmware, UEFI firmware PXE + TFTP, or Secure Boot.
+
 ## [0.1.0] - 2026-10-10 (unit-tested, never booted)
 
 First version. It grew from the Windows 11 network-install scripts staged in R2 on 2026-10-05 (`install.ps1`,

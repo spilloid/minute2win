@@ -93,3 +93,88 @@ Every finding is reproduced against source before it is accepted (corporate-stra
   and runs in CI.
 - Round 3 (astra, vendored codex 0.162.1): finding #3 **CLOSED**, no new High/Critical, **SIGN-OFF: yes.** The Azure setup and the signing-check
   workflow still have not been run (kubert's `az` login must be refreshed), so the signed-release path is reviewed and fails closed, but unproven.
+
+## 2026-10-10 — built-in PXE (`-pxe`), unreleased
+
+- Asked: an opt-in proxyDHCP + read-only TFTP front end in minute2win-server so a deploy needs no dnsmasq, answering ARMED MACs only,
+  never offering an address, no embedded iPXE. Then (operator decision mid-task): no third-party dependencies, standard library only.
+- Built: `server/dhcp.go` (BOOTP/DHCP parse and proxy reply), `server/pxe.go` (policy, listeners, reply routing, rate-limited
+  logging, bind-error advice), `server/tftp.go` (RRQ only, octet, blksize/tsize/timeout via OACK, bounded retransmit, one goroutine
+  and ephemeral port per transfer, directory confinement), `server/sock_*.go` (SO_REUSEADDR/REUSEPORT on 67; Linux IP_PKTINFO to learn
+  and answer on the receiving interface), flags in `main.go`, and `tests/pxe/pxe-lan.sh`.
+- Decisions not in the brief: REQUESTs on UDP 67 are answered only when option 54 names us (others belong to the real DHCP server);
+  option 66 (TFTP server) is added for TFTP file names as a hint for firmware that prefers it; option 54 is sent (needed for the 4011
+  step); replies are padded to 300 bytes; a degraded server offers nothing (it would not deploy anyway); non-Linux hosts with several
+  IPv4 addresses must set `-pxe-ip`; TFTP blksize is capped at 1468 and only octet mode is served; bind failures stop startup.
+- Verified by running: `gofmt -l`, `go vet`, `go test -count=1 -race` (decision table per arch/armed/unarmed/expired/consumed/degraded,
+  reply contents and destinations, garbage and truncated packets for both parsers, loopback end to end: arm, DISCOVER, 4011 ACK, TFTP
+  byte-exact, iPXE URL, `/boot`, ignored afterwards; TFTP refusals, exact-512 and multi-block files, retry bound); 20 s and 10 s fuzz runs
+  of the two parsers; cross builds for windows/amd64, linux/arm64, darwin. Mutation spot checks: ten deliberate bugs (armed check,
+  expiry, iPXE detection, yiaddr, option 43, path confinement, end-of-transfer) each made a test fail. `tests/pxe/pxe-lan.sh`
+  (MODE=bios) passed: QEMU's iPXE ROM on a bridge, with dnsmasq as a separate plain DHCP server, got the `/boot` URL advertising the
+  bridge address on a two-interface host, the arm was consumed, and the second boot was ignored.
+- Not verified: any real PXE firmware; UEFI firmware PXE and our TFTP serving a real client (OVMF in the harness never attempted a
+  network boot); BIOS firmware PXE with `undionly.kpxe`; the Secure Boot shim chain; anything on Windows beyond compiling. No astra
+  review has been run on this change yet (STD-001 still owed).
+
+### PXE adversarial review round 1
+
+astra (Codex `gpt-6-astra`) reviewed feat/pxe after the rebase onto main. 11 findings; the orchestrator adjudicated them (#1
+narrowed, all others accepted). Each fix has a test that was checked by planting the old behaviour back and watching it fail.
+
+| # | Sev | Finding | Adjudication | Change |
+|---|---|---|---|---|
+| 1 | High | Arm checked under `s.mu`, then released before the reply is built and sent | **Accepted, narrowed**: don't hold `s.mu` across the write | Re-check armed and not degraded immediately before the send, with a 250 ms write deadline. The remaining window is microseconds and harmless: an offer only names iPXE or the `/boot` URL, and `/boot` (decided under `s.mu`) is the only thing that deploys. Test: a hook consumes, disarms or degrades between the decision and the send; no reply |
+| 2 | Med | Option overload (52) ignored, so options in `file`/`sname` were missed | Accepted | Parsed in RFC 3396 order (options, file, sname); a malformed overloaded field drops the packet. Tests: PXE options and iPXE user class found in file/sname, concatenation order, 7 malformed cases |
+| 3 | Med | `-listen :0` advertised HTTP port 0 | Accepted | HTTP binds first; `pxeHTTPTarget` takes the port from the bound listener and advertises the bound IP when there is one (loopback or IPv6-only refused). Table test plus a real `:0` listener |
+| 4 | High | Log rate-limit maps unbounded; attacker bytes logged raw | Accepted | Hard 4096-key cap with an O(1) reset, a global 20 lines/s (burst 50) budget with a "suppressed" count, `%q` for file names. Tests: 100k distinct keys stay under the cap and within budget; a file name with a newline is logged quoted (served and refused) |
+| 5 | High | `timeout=255` let 64 RRQs hold every slot for ~25 minutes | Accepted | `timeout` accepted only for 1..10 s (echoed exactly, otherwise left out of the OACK); 60 s lifetime and 20 s idle limit regardless; at most 4 transfers per client IP as well as 64 in total; shutdown closes transfer sockets. Tests: negotiation table, per-IP cap, 64-slot saturation then recovery, idle limit, lifetime, close returns at once |
+| 6 | Med | Check-then-open symlink race | Accepted | `os.OpenRoot` + `root.Open`; only the regular file at that name (Lstat + SameFile on the opened file), so symlinks are now refused even inside the directory. Test: a name flipped between a file and a symlink to an outside file 300 times never serves the outside file (the old-style open served it 3 of 3 runs) |
+| 7 | Med | A duplicate RRQ started a second transfer | Accepted | Same client address + file while a transfer runs is ignored. Tests: duplicate RRQs give one TID; duplicate ACKs don't trigger a resend |
+| 8 | Med | Arch 6 (IA32 UEFI) got the x64 file | Accepted | New `-pxe-file-ia32` (default empty: no offer); 7 and 9 stay x64 |
+| 9 | Low | Options 93/94 not echoed (RFC 4578 section 2) | Accepted | Echoed; 94 only if sent |
+| 10 | Low | SO_REUSEPORT hard-coded 0xf on all Linux (MIPS is 0x200); fallback compiled for Solaris etc. | Accepted | Linux file limited to amd64/arm64/386/arm/riscv64/ppc64le/s390x/loong64 (all 0xf, checked in the Go 1.27.1 syscall sources); fallback limited to darwin/freebsd/netbsd/openbsd (syscall defines SO_REUSEPORT there); a stub everywhere else makes `-pxe` fail at startup with a clear error. No runtime test is possible for the stub on this host; evidence is `go vet` + `go build` for linux/mips, solaris/amd64, freebsd/amd64, darwin/arm64, plan9/amd64, windows/amd64 and linux/arm64, plus builds for 17 more GOOS/GOARCH pairs |
+| 11 | Med | `pxe-lan.sh` could certify "second boot ignored" with no evidence | Accepted | Fails on any setup/container/qemu failure; tcpdump on the bridge per boot; boot 2 must show the VM's PXE DHCPDISCOVER and zero replies from minute2win on UDP 67/4011. Run: PASS. With an always-armed server planted: FAIL ("minute2win replied on boot 2"), a case the old log-based check would have passed because the offer line was rate-limited |
+
+Also added: a loopback end-to-end test that reads replies concurrently while arms flip (every reply well-formed, yiaddr 0).
+Two planted bugs did not fail a test, and both were redundant checks rather than gaps: removing only the first duplicate-RRQ check
+(the second, under the lock, still catches it), and opening with `os.Open` while the Lstat/SameFile check remains (that check alone still
+refuses a swapped name). With both halves removed, each is caught.
+Still not verified: everything listed in CLAUDE.md for real PXE firmware (UEFI and BIOS firmware PXE, TFTP to a real client, Secure
+Boot, Windows).
+
+### PXE adversarial review round 2
+
+astra re-checked round 1: findings 1-3 and 5-11 **closed**, #4 not fully. It also confirmed new gaps in the fixes. The orchestrator
+accepted all of them (A-F). As before, each fix has a test that fails when the old behaviour is planted back.
+
+| # | Finding | Change | Planted-back check |
+|---|---|---|---|
+| A | TFTP writes had no deadline: a blocked UDP write bypassed the lifetime/idle limits, including the listener's refusals | Every write (DATA, OACK, ERROR, refusals) goes through a 2 s write deadline (capped by the lifetime); a failed or timed-out write ends the transfer and frees its slot. Transfer and listener sockets are injectable for tests | A connection whose writes block until their deadline: the slot is freed within the lifetime, and a blocked refusal doesn't stall the listener. Without the deadlines: both fail |
+| B | Log injection via error text: `%q` on the name, but the `*PathError` (which holds the raw name) printed with `%v`. The round 1 test used a name with `:`, which is refused before the filesystem lookup | `errText` (strconv.Quote) for every logged error; every log call in pxe/tftp/dhcp re-checked: the rest are Go-formatted addresses, MACs formatted from bytes, or messages built from quoted parts | A nonexistent `"x\nFORGED ..."` reaches the lookup; no raw newline in any line. Old `%v`: fails. Round 1 test kept |
+| C | One shared log budget: noise could starve offers; a budget-dropped line still stamped its key; repeats not counted; the notice was free | Two classes: policy (offers/ACKs, send failures, local errors) 20/s burst 50; noise (malformed, unarmed MACs, which a spoofer can invent at will, and every TFTP line) 5/s burst 20. Stamp the key only when a line is printed; count repeats too; the notice costs a token. Hard key cap kept | Starvation, retry-after-drop, exact suppressed counts with refill, output bound under alternating repeats and new keys. One shared bucket, early stamping, uncounted repeats, a free notice: each fails |
+| D | `-pxe-ip` returned early and skipped reachability, so `-listen 127.0.0.1:8080 -pxe-ip <LAN>` advertised an unreachable URL | `pxeHTTPTarget` validates: a specific IPv4 bind must equal `-pxe-ip`; loopback, `[::1]` and IPv6-specific binds are refused with `-pxe`; on a wildcard bind `-pxe-ip` must be a unicast IPv4 address, with a warning if it isn't local. `[::]` is treated as dual-stack; OpenBSD (where it isn't) moved to the platforms where `-pxe` refuses to start | 17-row table plus real listeners (loopback with a LAN `-pxe-ip`, wildcard `:0`, `[::1]`). The old early return, a missing mismatch check and a missing warning: each fails |
+| E | `pxe-lan.sh` could still falsely pass: process existence isn't responder health, and tcpdump's stderr (drops, errors) was discarded | Boot 3 after re-arming must be answered and must consume the new arm (positive control). Each capture must say it was listening and exit with "0 packets dropped by kernel" and no other messages | Run: PASS (`boot1 replies=2`, `boot2 discover=2 replies=0`, `boot3 discover=1 replies=1`). A responder planted to wedge after its first offer passes boots 1-2 and fails at boot 3. The drop check has only seen 0 drops; its failure path has not run |
+| F | Tests too weak: the symlink race allowed zero successful fetches; no expiry between the two arm checks; no listener tests for a mismatched `-pxe-ip` or an IPv6-only bind | Symlink race must both serve and refuse (it ran up to 3000 fetches); the recheck test gains an arm that expires between the checks; real-listener tests in D | A recheck that skips expiry fails; with every open refused, the symlink test now fails instead of passing vacuously |
+
+Remaining gaps: write deadlines and log budgets were tested with fakes and a simulated clock, not under real socket pressure; the
+capture-drop failure path is untested; and everything listed in CLAUDE.md for real PXE firmware (UEFI and BIOS firmware PXE, TFTP to a
+real client, Secure Boot, Windows) is still UNVERIFIED.
+
+### PXE adversarial review round 3 (astra, vendored codex 0.162.1)
+
+A, B, D, E, F CLOSED. **C NOT CLOSED, Medium, confirmed:** two events that should be protected diagnostics still sat in the noise class, so an
+attacker flooding unauthenticated requests could hide them: the final authorization-recheck rejection of a previously armed MAC (which
+also shared its suppression key with the ordinary "not armed" noise for that MAC) and TFTP listener read failures. Ordinary first-check
+"not armed" lines stay in the noise class (astra agreed: a spoofer can invent unlimited MACs). Fixed by the orchestrator (a small, mechanical
+change, so not delegated): the recheck rejection is a policy line with its own `revoked:<mac>` key (it can only fire for a MAC that WAS
+armed a moment earlier); the listener read failure is a policy line via `readFailed`, and the listener now backs off 50 ms after a read
+error so a persistent socket failure can't spin the CPU. Two tests (`pxe_review3_test.go`) flood the noise budget with 5000 distinct keys and
+require both lines to still appear; the recheck test failed on the unchanged code, and planting the old class back fails the TFTP test.
+astra's note that coverage of the *call sites'* classification and of writes where `WriteTimeout > Lifetime` would be nice is accepted as a
+follow-up; the first is now covered for these two sites.
+
+Round 4 (astra): finding C **CLOSED**, no regression, **SIGN-OFF: yes** for the PXE front end (after four rounds: 11 findings, then 5 gaps in the fixes, then 1 more, then closed). Two coverage caveats accepted
+and noted rather than fixed: the "burn the ordinary key" step in the recheck test runs after the noise budget is already exhausted so it does not itself stamp that key (the separate
+`revoked:` key is covered by source inspection), and the TFTP test checks the backoff constant, not the actual sleep or listener dispatch. Still UNVERIFIED: any real PXE firmware (BIOS and UEFI), TFTP to
+a real client, the Secure Boot shim chain, and anything PXE on Windows beyond compiling; the write deadlines and log budgets were tested with fakes and a simulated clock, not under real socket pressure.
