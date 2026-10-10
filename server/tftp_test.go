@@ -87,11 +87,26 @@ func tftpRequestQuiet(server *net.UDPAddr, op uint16, name, mode string, opts ma
 
 func newTestTFTP(t *testing.T, dir string) *tftpServer {
 	t.Helper()
+	return newTestTFTPLimits(t, dir, tftpLimits{})
+}
+
+func newTestTFTPLimits(t *testing.T, dir string, limits tftpLimits) *tftpServer {
+	t.Helper()
+	return newTestTFTPFull(t, dir, 200*time.Millisecond, limits)
+}
+
+func newTestTFTPTimeout(t *testing.T, dir string, timeout time.Duration) *tftpServer {
+	t.Helper()
+	return newTestTFTPFull(t, dir, timeout, tftpLimits{})
+}
+
+func newTestTFTPFull(t *testing.T, dir string, timeout time.Duration, limits tftpLimits) *tftpServer {
+	t.Helper()
 	c, err := listenUDP(net.IPv4(127, 0, 0, 1), 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := newTFTPServer(c, dir, 200*time.Millisecond, newLogLimiter(time.Minute, time.Now))
+	ts := newTFTPServer(c, dir, timeout, limits, newLogLimiter(time.Minute, time.Now))
 	go ts.serve()
 	t.Cleanup(ts.close)
 	return ts
@@ -183,7 +198,7 @@ func TestTFTPRefuses(t *testing.T) {
 		symlinks = false // Windows without the privilege
 	}
 	os.Symlink("sub/inner", filepath.Join(dir, "intosub"))
-	os.Symlink("ok", filepath.Join(dir, "alias")) // inside the directory: allowed
+	os.Symlink("ok", filepath.Join(dir, "alias")) // even inside the directory: refused (only the regular file itself is served)
 	ts := newTestTFTP(t, dir)
 	addr := ts.conn.LocalAddr().(*net.UDPAddr)
 	for _, name := range []string{"../secret", "..", ".", "", "sub/inner", "sub", `sub\inner`, filepath.Join(root, "secret"), "/ok", "missing", "C:ok"} {
@@ -192,13 +207,10 @@ func TestTFTPRefuses(t *testing.T) {
 		}
 	}
 	if symlinks {
-		for _, name := range []string{"escape", "intosub"} {
+		for _, name := range []string{"escape", "intosub", "alias"} {
 			if got, err := tftpGet(addr, name, nil); err == nil {
 				t.Errorf("symlink %q served (%q)", name, got)
 			}
-		}
-		if got, err := tftpGet(addr, "alias", nil); err != nil || string(got) != "ok" {
-			t.Errorf("in-directory symlink: %v %q", err, got)
 		}
 	}
 	if _, err := tftpRequest(addr, tftpWRQ, "ok", "octet", nil); err == nil || !strings.Contains(err.Error(), "read-only") {

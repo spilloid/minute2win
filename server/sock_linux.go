@@ -1,3 +1,5 @@
+//go:build linux && (amd64 || arm64 || 386 || arm || riscv64 || ppc64le || s390x || loong64)
+
 package main
 
 import (
@@ -10,7 +12,11 @@ import (
 
 const havePktinfo = true
 
-const soReusePort = 0xf // SO_REUSEPORT; not in package syscall for linux
+const pxePlatformOK = true
+
+// SO_REUSEPORT is 0xf on every architecture this file builds for (package syscall omits it on amd64, 386 and arm). MIPS uses
+// 0x200 and SPARC 0x200, which is why the build constraint above lists architectures instead of all of linux.
+const soReusePort = 0xf
 
 const privHint = "Ports below 1024 need root or CAP_NET_BIND_SERVICE: run as root, or `sudo setcap cap_net_bind_service=+ep ./minute2win-server`."
 

@@ -8,6 +8,8 @@ import (
 
 const havePktinfo = false
 
+const pxePlatformOK = true
+
 const privHint = "On Windows, run minute2win-server as Administrator and allow it through the firewall " +
 	"(for example: New-NetFirewallRule -DisplayName minute2win-pxe -Direction Inbound -Protocol UDP -LocalPort 67,69,4011 -Action Allow)."
 

@@ -1,4 +1,4 @@
-//go:build unix && !linux
+//go:build darwin || freebsd || netbsd || openbsd
 
 package main
 
@@ -9,6 +9,8 @@ import (
 )
 
 const havePktinfo = false
+
+const pxePlatformOK = true
 
 const privHint = "Ports below 1024 need root on this OS."
 

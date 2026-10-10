@@ -2,10 +2,12 @@ package main
 
 // A read-only TFTP server (RFC 1350) with the option extensions PXE firmware uses: blksize (RFC 2348), tsize and timeout
 // (RFC 2349), negotiated with OACK (RFC 2347). Octet mode only. It serves regular files directly inside one directory and nothing
-// else: no subdirectories, no "..", no absolute paths, no symlink that resolves outside the directory, no writes.
+// else: no subdirectories, no "..", no absolute paths, no symlinks (even ones pointing inside), no writes. Confinement is enforced
+// at open time by os.Root, and the opened file must be the very regular file named in the directory.
 //
 // TFTP has no authentication and cannot know which MAC is asking, so anyone who can reach UDP 69 can read anything in the directory.
-// It is meant to hold only the public iPXE binaries.
+// It is meant to hold only the public iPXE binaries. Resource use is bounded: tftpLimits caps concurrent transfers (in total and
+// per client IP), each transfer's lifetime, and how long it may sit without progress.
 
 import (
 	"bytes"
@@ -15,7 +17,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,27 +39,70 @@ const (
 	tftpDefaultBlk = 512
 	tftpMaxBlk     = 1468 // fits a 1500-byte MTU without fragmentation
 	tftpRetries    = 5
-	tftpMaxActive  = 64
+	tftpMaxTimeout = 10 // seconds; larger "timeout" options are declined
 )
+
+type tftpLimits struct {
+	MaxActive int           // concurrent transfers in total (64)
+	MaxPerIP  int           // concurrent transfers per client IP (4)
+	Lifetime  time.Duration // hard cap on one transfer (60 s)
+	Idle      time.Duration // a transfer with no new ACK for this long ends (20 s), whatever timeout was negotiated
+}
+
+func (l tftpLimits) withDefaults() tftpLimits {
+	if l.MaxActive <= 0 {
+		l.MaxActive = 64
+	}
+	if l.MaxPerIP <= 0 {
+		l.MaxPerIP = 4
+	}
+	if l.Lifetime <= 0 {
+		l.Lifetime = 60 * time.Second
+	}
+	if l.Idle <= 0 {
+		l.Idle = 20 * time.Second
+	}
+	return l
+}
 
 type tftpServer struct {
 	conn    *net.UDPConn
 	dir     string
 	timeout time.Duration
+	limits  tftpLimits
 	lim     *logLimiter
-	active  chan struct{}
-	wg      sync.WaitGroup
-	done    chan struct{}
+
+	mu       sync.Mutex
+	closed   bool
+	active   int
+	perIP    map[string]int
+	inflight map[string]*net.UDPConn // client addr + NUL + file name -> its transfer socket (nil while dialing)
+	wg       sync.WaitGroup
 }
 
-func newTFTPServer(c *net.UDPConn, dir string, timeout time.Duration, lim *logLimiter) *tftpServer {
-	return &tftpServer{conn: c, dir: dir, timeout: timeout, lim: lim, active: make(chan struct{}, tftpMaxActive), done: make(chan struct{})}
+func newTFTPServer(c *net.UDPConn, dir string, timeout time.Duration, limits tftpLimits, lim *logLimiter) *tftpServer {
+	return &tftpServer{conn: c, dir: dir, timeout: timeout, limits: limits.withDefaults(), lim: lim,
+		perIP: map[string]int{}, inflight: map[string]*net.UDPConn{}}
 }
 
+// close stops the listener and every transfer at once (closing their sockets unblocks their reads), then waits for them.
 func (t *tftpServer) close() {
-	close(t.done)
+	t.mu.Lock()
+	t.closed = true
+	for _, c := range t.inflight {
+		if c != nil {
+			c.Close()
+		}
+	}
+	t.mu.Unlock()
 	t.conn.Close()
 	t.wg.Wait()
+}
+
+func (t *tftpServer) activeCount() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.active
 }
 
 func (t *tftpServer) serve() {
@@ -77,54 +121,35 @@ func (t *tftpServer) serve() {
 	}
 }
 
-var errTFTPPath = errors.New("not a file directly inside the TFTP directory")
+var errTFTPPath = errors.New("not a regular file directly inside the TFTP directory")
 
-// tftpPath resolves a requested name to a regular file directly inside dir, or fails. Names are taken as-is (no case folding).
-func tftpPath(dir, name string) (string, error) {
-	if name == "" || len(name) > 255 || name == "." || name == ".." || strings.ContainsAny(name, "/\\:\x00") || filepath.IsAbs(name) || filepath.VolumeName(name) != "" {
-		return "", errTFTPPath
+// openServed opens name, which must be a regular file directly inside dir (not a symlink, not in a subdirectory). os.Root
+// confines the open itself, so a name swapped for a symlink after any check still cannot reach outside dir; the Lstat/SameFile pair
+// then refuses anything but the regular file that sits at that name. Names are taken as-is (no case folding).
+func openServed(dir, name string) (*os.File, int64, error) {
+	if name == "" || len(name) > 255 || name == "." || name == ".." || strings.ContainsAny(name, "/\\:\x00") {
+		return nil, 0, errTFTPPath
 	}
-	root, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		return "", err
-	}
-	root, err = filepath.Abs(root)
-	if err != nil {
-		return "", err
-	}
-	full, err := filepath.EvalSymlinks(filepath.Join(root, name))
-	if err != nil {
-		return "", err
-	}
-	full, err = filepath.Abs(full)
-	if err != nil {
-		return "", err
-	}
-	if filepath.Dir(full) != root {
-		return "", errTFTPPath // a symlink that points outside the directory, or into a subdirectory
-	}
-	st, err := os.Stat(full)
-	if err != nil {
-		return "", err
-	}
-	if !st.Mode().IsRegular() {
-		return "", errTFTPPath
-	}
-	return full, nil
-}
-
-// openServed opens a path from tftpPath and checks the opened file is still that regular file (closes the swap-after-check window).
-func openServed(full string) (*os.File, int64, error) {
-	before, err := os.Stat(full)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, 0, err
 	}
-	f, err := os.Open(full)
+	defer root.Close()
+	// Lstat first so a FIFO or device is never opened (opening a FIFO would block). Swapping one in afterwards needs write access
+	// to the directory, which is outside this server's threat model.
+	lst, err := root.Lstat(name)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !lst.Mode().IsRegular() {
+		return nil, 0, errTFTPPath
+	}
+	f, err := root.Open(name)
 	if err != nil {
 		return nil, 0, err
 	}
 	st, err := f.Stat()
-	if err != nil || !st.Mode().IsRegular() || !os.SameFile(before, st) {
+	if err != nil || !st.Mode().IsRegular() || !os.SameFile(lst, st) {
 		f.Close()
 		return nil, 0, errTFTPPath
 	}
@@ -183,65 +208,101 @@ func (t *tftpServer) request(b []byte, src *net.UDPAddr, li localInfo) {
 		t.deny(src, tftpErrIllegal, err.Error(), err.Error())
 		return
 	}
+	key := src.String() + "\x00" + r.file
+	t.mu.Lock()
+	_, dup := t.inflight[key]
+	t.mu.Unlock()
+	if dup {
+		return // the client resent its RRQ before seeing our first packet: that transfer is already running
+	}
 	if r.mode != "octet" {
 		t.deny(src, tftpErrIllegal, "only octet mode is supported", "refused mode "+strconv.Quote(r.mode))
 		return
 	}
-	full, err := tftpPath(t.dir, r.file)
+	f, size, err := openServed(t.dir, r.file)
 	if err != nil {
 		t.deny(src, tftpErrNotFound, "file not found", fmt.Sprintf("refused %q (%v)", r.file, err))
 		return
 	}
-	f, size, err := openServed(full)
-	if err != nil {
-		t.deny(src, tftpErrNotFound, "file not found", fmt.Sprintf("refused %q (%v)", r.file, err))
+	ip := src.IP.String()
+	t.mu.Lock()
+	_, dup = t.inflight[key]
+	switch {
+	case t.closed || dup:
+		t.mu.Unlock()
+		f.Close()
 		return
-	}
-	select {
-	case t.active <- struct{}{}:
-	default:
+	case t.active >= t.limits.MaxActive || t.perIP[ip] >= t.limits.MaxPerIP:
+		t.mu.Unlock()
 		f.Close()
 		t.deny(src, tftpErrUndef, "server busy", "too many transfers")
 		return
 	}
+	t.active++
+	t.perIP[ip]++
+	t.inflight[key] = nil
+	t.wg.Add(1)
+	t.mu.Unlock()
+	release := func() {
+		t.mu.Lock()
+		delete(t.inflight, key)
+		t.active--
+		if t.perIP[ip]--; t.perIP[ip] <= 0 {
+			delete(t.perIP, ip)
+		}
+		t.mu.Unlock()
+		t.wg.Done()
+	}
 	// Answer from the address the request was sent to (Linux tells us), so the client sees the server it asked.
 	var laddr *net.UDPAddr
-	if ip := li.dst.To4(); ip != nil && !ip.IsUnspecified() && !ip.Equal(net.IPv4bcast) && !ip.IsMulticast() {
-		laddr = &net.UDPAddr{IP: ip}
+	if dst := li.dst.To4(); dst != nil && !dst.IsUnspecified() && !dst.Equal(net.IPv4bcast) && !dst.IsMulticast() {
+		laddr = &net.UDPAddr{IP: dst}
 	} else if la := t.conn.LocalAddr().(*net.UDPAddr); !la.IP.IsUnspecified() {
 		laddr = &net.UDPAddr{IP: la.IP}
 	}
 	c, err := net.DialUDP("udp4", laddr, src)
 	if err != nil {
-		<-t.active
 		f.Close()
+		release()
 		t.lim.logf("tftp-dial", "tftp: %s: %v", src, err)
 		return
 	}
-	t.wg.Add(1)
+	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		c.Close()
+		f.Close()
+		release()
+		return
+	}
+	t.inflight[key] = c
+	t.mu.Unlock()
 	go func() {
-		defer t.wg.Done()
-		defer func() { <-t.active }()
+		defer release()
 		defer f.Close()
 		defer c.Close()
 		sent, err := t.transfer(c, f, size, r.opts)
 		switch {
 		case err == nil:
-			t.lim.logf("tftp-ok:"+src.IP.String()+":"+r.file, "tftp: sent %s to %s (%d bytes)", r.file, src.IP, sent)
+			t.lim.logf("tftp-ok:"+ip+":"+r.file, "tftp: sent %q to %s (%d bytes)", r.file, ip, sent)
 		case errors.Is(err, errPeerAborted):
 			// Normal: UEFI asks for tsize, then aborts and asks again.
 		default:
-			t.lim.logf("tftp-fail:"+src.IP.String()+":"+r.file, "tftp: %s to %s failed: %v", r.file, src.IP, err)
+			t.lim.logf("tftp-fail:"+ip+":"+r.file, "tftp: %q to %s failed: %v", r.file, ip, err)
 		}
 	}()
 }
 
 var errPeerAborted = errors.New("client aborted")
 
-// transfer runs one read: optional OACK, then DATA blocks, each waiting for its ACK with retransmission on timeout.
+// transfer runs one read: optional OACK, then DATA blocks, each waiting for its ACK with retransmission on timeout. It ends on
+// success, on the client's ERROR, after tftpRetries resends, after limits.Idle without a new ACK, or after limits.Lifetime.
 func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[string]string) (int64, error) {
 	blk := tftpDefaultBlk
 	timeout := t.timeout
+	start := time.Now()
+	end := start.Add(t.limits.Lifetime)
+	progress := start
 	var oack []byte
 	addOpt := func(k, v string) {
 		if oack == nil {
@@ -259,9 +320,10 @@ func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[
 		addOpt("tsize", strconv.FormatInt(size, 10))
 	}
 	if v, ok := opts["timeout"]; ok {
-		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= 255 {
+		// Accepted only within 1..10 s; anything else is declined (left out of the OACK) and the default applies.
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= tftpMaxTimeout {
 			timeout = time.Duration(n) * time.Second
-			addOpt("timeout", v)
+			addOpt("timeout", strconv.Itoa(n))
 		}
 	}
 	rbuf := make([]byte, 1500)
@@ -274,19 +336,25 @@ func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[
 			}
 			deadline := time.Now().Add(timeout)
 			for {
-				select {
-				case <-t.done:
-					return errors.New("server stopping")
-				default:
+				now := time.Now()
+				if now.After(end) {
+					return errors.New("transfer lifetime exceeded")
 				}
-				_ = c.SetReadDeadline(deadline)
+				if now.Sub(progress) > t.limits.Idle {
+					return errors.New("no progress, giving up")
+				}
+				d := earliest(deadline, end, progress.Add(t.limits.Idle))
+				_ = c.SetReadDeadline(d)
 				n, err := c.Read(rbuf)
 				if err != nil {
 					var ne net.Error
 					if errors.As(err, &ne) && ne.Timeout() {
+						if time.Now().Before(deadline) {
+							continue // woke for the lifetime/idle limit; the checks above end it
+						}
 						break
 					}
-					return err
+					return err // includes the socket being closed at shutdown
 				}
 				if n < 4 {
 					continue
@@ -294,6 +362,7 @@ func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[
 				switch binary.BigEndian.Uint16(rbuf) {
 				case tftpACK:
 					if binary.BigEndian.Uint16(rbuf[2:]) == want {
+						progress = time.Now()
 						return nil
 					}
 				case tftpERROR:
@@ -326,4 +395,14 @@ func (t *tftpServer) transfer(c *net.UDPConn, f io.Reader, size int64, opts map[
 			return sent, nil // a short (possibly empty) block ends the transfer
 		}
 	}
+}
+
+func earliest(ts ...time.Time) time.Time {
+	e := ts[0]
+	for _, t := range ts[1:] {
+		if t.Before(e) {
+			e = t
+		}
+	}
+	return e
 }

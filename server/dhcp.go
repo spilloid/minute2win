@@ -24,12 +24,14 @@ const (
 	optPad            = 0
 	optVendorSpecific = 43
 	optMsgType        = 53
+	optOverload       = 52
 	optServerID       = 54
 	optVendorClass    = 60
 	optTFTPServer     = 66
 	optBootFile       = 67
 	optUserClass      = 77
 	optClientArch     = 93
+	optClientNDI      = 94
 	optClientUUID     = 97
 	optIPXEEncap      = 175
 	optEnd            = 255
@@ -40,8 +42,9 @@ const (
 
 var dhcpMagic = []byte{99, 130, 83, 99}
 
-// dhcpPacket holds the fields the PXE responder reads. Options that appear more than once are concatenated (RFC 3396).
-// Option overload (52) is not supported: the sname/file fields are never read as options.
+// dhcpPacket holds the fields the PXE responder reads. Options that appear more than once are concatenated (RFC 3396), in the
+// order RFC 3396 gives: the options field, then file, then sname. Option overload (52) is honoured: 1 = file, 2 = sname, 3 = both
+// hold more options.
 type dhcpPacket struct {
 	op, htype, hlen byte
 	xid             [4]byte
@@ -64,7 +67,35 @@ func parseDHCP(b []byte) (*dhcpPacket, error) {
 		ciaddr: net.IP(append([]byte(nil), b[12:16]...)), giaddr: net.IP(append([]byte(nil), b[24:28]...)), opts: map[byte][]byte{}}
 	copy(p.xid[:], b[4:8])
 	copy(p.chaddr[:], b[28:44])
-	o := b[dhcpHeaderLen+4:]
+	if err := parseOptions(b[dhcpHeaderLen+4:], p.opts, "options"); err != nil {
+		return nil, err
+	}
+	if ov, ok := p.opts[optOverload]; ok {
+		if len(ov) != 1 || ov[0] < 1 || ov[0] > 3 {
+			return nil, fmt.Errorf("%w: bad option overload %v", errMalformed, ov)
+		}
+		// Options found in file/sname must not redefine overload itself.
+		before := len(p.opts[optOverload])
+		if ov[0]&1 != 0 {
+			if err := parseOptions(b[108:236], p.opts, "file"); err != nil {
+				return nil, err
+			}
+		}
+		if ov[0]&2 != 0 {
+			if err := parseOptions(b[44:108], p.opts, "sname"); err != nil {
+				return nil, err
+			}
+		}
+		if len(p.opts[optOverload]) != before {
+			return nil, fmt.Errorf("%w: option overload inside an overloaded field", errMalformed)
+		}
+	}
+	return p, nil
+}
+
+// parseOptions reads one option area into opts (appending to repeated options). The area must end with the end option; anything
+// that overruns it is malformed.
+func parseOptions(o []byte, opts map[byte][]byte, area string) error {
 	for i := 0; i < len(o); {
 		code := o[i]
 		if code == optPad {
@@ -72,19 +103,19 @@ func parseDHCP(b []byte) (*dhcpPacket, error) {
 			continue
 		}
 		if code == optEnd {
-			return p, nil
+			return nil
 		}
 		if i+1 >= len(o) {
-			return nil, fmt.Errorf("%w: option %d has no length", errMalformed, code)
+			return fmt.Errorf("%w: %s: option %d has no length", errMalformed, area, code)
 		}
 		n := int(o[i+1])
 		if i+2+n > len(o) {
-			return nil, fmt.Errorf("%w: option %d overruns the packet", errMalformed, code)
+			return fmt.Errorf("%w: %s: option %d overruns the field", errMalformed, area, code)
 		}
-		p.opts[code] = append(p.opts[code], o[i+2:i+2+n]...)
+		opts[code] = append(opts[code], o[i+2:i+2+n]...)
 		i += 2 + n
 	}
-	return nil, fmt.Errorf("%w: no end option", errMalformed)
+	return fmt.Errorf("%w: %s: no end option", errMalformed, area)
 }
 
 // mac returns the client hardware address in normMAC form; ok is false unless it is Ethernet (htype 1, hlen 6).
@@ -143,8 +174,11 @@ func buildProxyReply(req *dhcpPacket, msgType byte, serverIP net.IP, bootFile st
 	opt(optMsgType, []byte{msgType})
 	opt(optServerID, serverIP.To4())
 	opt(optVendorClass, []byte("PXEClient"))
-	if uuid, ok := req.opts[optClientUUID]; ok && len(uuid) <= 255 {
-		opt(optClientUUID, uuid)
+	// RFC 4578 section 2: echo the client's architecture, interface identifier and UUID.
+	for _, code := range []byte{optClientArch, optClientNDI, optClientUUID} {
+		if v, ok := req.opts[code]; ok && len(v) <= 255 {
+			opt(code, v)
+		}
 	}
 	// PXE vendor options: PXE_DISCOVERY_CONTROL (6) = 8, "download the boot file in this packet": no menu, no boot-server discovery.
 	opt(optVendorSpecific, []byte{6, 1, 8, optEnd})

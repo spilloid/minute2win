@@ -20,10 +20,12 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -33,8 +35,8 @@ type PXEConfig struct {
 	TFTPPort   int // 69
 	ClientPort int // where port-67 replies go: 68
 
-	Dir                          string // TFTP root: only regular files directly inside it are served
-	FileX64, FileBIOS, FileARM64 string
+	Dir                                    string // TFTP root: only regular files directly inside it are served
+	FileX64, FileBIOS, FileARM64, FileIA32 string // FileIA32 "" = 32-bit UEFI clients get no offer
 
 	AdvertiseIP net.IP // -pxe-ip: overrides the address put in siaddr and the iPXE URL
 	HTTPPort    int    // port of this server's HTTP listener, for the iPXE URL
@@ -42,6 +44,7 @@ type PXEConfig struct {
 	ListenIP      net.IP // tests: bind to this address instead of all addresses
 	BroadcastAddr net.IP // tests: where "broadcast" replies go; default 255.255.255.255
 	TFTPTimeout   time.Duration
+	TFTPLimits    tftpLimits // zero fields take the defaults
 }
 
 // archFile picks the boot file by option 93 (RFC 4578). Anything else is ignored.
@@ -49,7 +52,9 @@ func (c *PXEConfig) archFile(arch uint16) (string, bool) {
 	switch arch {
 	case 0:
 		return c.FileBIOS, true
-	case 6, 7, 9:
+	case 6: // x86 (IA32) UEFI: a 64-bit binary would not run, so only its own file, and none by default
+		return c.FileIA32, true
+	case 7, 9:
 		return c.FileX64, true
 	case 11:
 		return c.FileARM64, true
@@ -67,6 +72,7 @@ type PXE struct {
 	fallbackIP net.IP
 	wg         sync.WaitGroup
 	lim        *logLimiter
+	beforeSend atomic.Pointer[func()] // tests: runs between the decision and the final re-check
 }
 
 type pxeAction int
@@ -223,6 +229,9 @@ func localIPv4s() ([]string, []net.IP) {
 // StartPXE binds the proxyDHCP (67, 4011) and TFTP (69) sockets and starts serving. A bind failure is returned with a message that
 // names the port and says what to do; a TFTP directory without the boot files is logged loudly but does not stop it.
 func (s *Server) StartPXE(cfg PXEConfig) (*PXE, error) {
+	if !pxePlatformOK {
+		return nil, fmt.Errorf("pxe: built-in PXE is not supported on %s/%s; use dnsmasq instead", runtime.GOOS, runtime.GOARCH)
+	}
 	if cfg.Dir == "" {
 		return nil, errors.New("pxe: -pxe-dir is required with -pxe (a folder holding your iPXE binaries)")
 	}
@@ -263,11 +272,11 @@ func (s *Server) StartPXE(cfg PXEConfig) (*PXE, error) {
 		closeAll()
 		return nil, bindError("TFTP", cfg.TFTPPort, err)
 	}
-	p.tftp = newTFTPServer(tc, cfg.Dir, cfg.TFTPTimeout, p.lim)
+	p.tftp = newTFTPServer(tc, cfg.Dir, cfg.TFTPTimeout, cfg.TFTPLimits, p.lim)
 
 	adv := "address of the receiving interface"
 	if cfg.AdvertiseIP != nil {
-		adv = cfg.AdvertiseIP.String() + " (-pxe-ip)"
+		adv = cfg.AdvertiseIP.String() + " (-pxe-ip, or the address HTTP is bound to)"
 	} else if !havePktinfo && p.fallbackIP != nil {
 		adv = p.fallbackIP.String()
 	}
@@ -293,15 +302,16 @@ func checkBootFiles(cfg PXEConfig) []string {
 	}
 	var out []string
 	seen := map[string]bool{}
-	for _, f := range []struct{ arch, name string }{{"x64 UEFI", cfg.FileX64}, {"BIOS", cfg.FileBIOS}, {"arm64 UEFI", cfg.FileARM64}} {
+	for _, f := range []struct{ arch, name string }{{"x64 UEFI", cfg.FileX64}, {"BIOS", cfg.FileBIOS}, {"arm64 UEFI", cfg.FileARM64}, {"IA32 UEFI", cfg.FileIA32}} {
 		if f.name == "" || seen[f.name] {
 			continue
 		}
 		seen[f.name] = true
-		if _, err := tftpPath(cfg.Dir, f.name); err != nil {
+		if fl, _, err := openServed(cfg.Dir, f.name); err != nil {
 			out = append(out, fmt.Sprintf("pxe: ERROR: %s boot file %q is not servable from %s (%v)", f.arch, f.name, cfg.Dir, err))
 		} else {
-			out = append(out, fmt.Sprintf("pxe: %s boot file %s: ok", f.arch, f.name))
+			fl.Close()
+			out = append(out, fmt.Sprintf("pxe: %s boot file %q: ok", f.arch, f.name))
 		}
 	}
 	sort.Strings(out)
@@ -345,6 +355,18 @@ func (p *PXE) handle(c *net.UDPConn, b []byte, src *net.UDPAddr, li localInfo, o
 	}
 	reply := buildProxyReply(req, d.msgType, serverIP, d.file)
 	dst, bcast := p.replyDest(req, src, onProxyPort)
+	if hook := p.beforeSend.Load(); hook != nil {
+		(*hook)()
+	}
+	// The arm check in decide released s.mu (holding it across a network write would stall arming and /boot). Re-check right before
+	// sending, so an arm that was consumed, disarmed or expired, or a server that degraded, in the meantime gets no reply. What remains
+	// is the microseconds between this check and the write: harmless, because an offer only names iPXE or the /boot URL, and /boot,
+	// which decides under s.mu, is the only thing that deploys.
+	if !p.s.pxeArmed(d.mac) {
+		p.lim.logf("notarmed:"+d.mac, "pxe: %s not armed, ignoring", d.mac)
+		return
+	}
+	_ = c.SetWriteDeadline(time.Now().Add(250 * time.Millisecond))
 	if err := writeUDP(c, reply, dst, li, bcast); err != nil {
 		p.lim.logf("send:"+d.mac, "pxe: reply to %s (%s) failed: %v", d.mac, dst, err)
 		return
@@ -353,7 +375,7 @@ func (p *PXE) handle(c *net.UDPConn, b []byte, src *net.UDPAddr, li localInfo, o
 	if d.msgType == dhcpAck {
 		kind = "acked"
 	}
-	p.lim.logf(kind+":"+d.mac+":"+d.file, "pxe: %s %s arch=%d file=%s", kind, d.mac, d.arch, d.file)
+	p.lim.logf(kind+":"+d.mac+":"+d.file, "pxe: %s %s arch=%d file=%q", kind, d.mac, d.arch, d.file)
 }
 
 // Close stops all listeners and waits for in-flight TFTP transfers to end.
@@ -377,17 +399,39 @@ func bindError(what string, port int, err error) error {
 	return fmt.Errorf("pxe: cannot bind %s on UDP %d: %w", what, port, err)
 }
 
-// logLimiter prints a line for a given key at most once per period, so a client retrying every second does not flood the log.
+// logLimiter keeps logging bounded whatever arrives on the wire:
+//   - per key (a MAC, a client IP, a file name): at most one line per period;
+//   - the key map has a hard cap; when it is full it is replaced by an empty one (O(1); the worst case is a repeated line);
+//   - a global token bucket (logRate lines/s, logBurst burst) caps total volume; dropped lines are counted and reported once
+//     the budget allows.
+//
+// Callers format attacker-supplied text with %q.
 type logLimiter struct {
-	mu     sync.Mutex
-	period time.Duration
-	now    func() time.Time
-	last   map[string]time.Time
-	out    func(string, ...any)
+	mu         sync.Mutex
+	period     time.Duration
+	now        func() time.Time
+	last       map[string]time.Time
+	out        func(string, ...any)
+	tokens     float64
+	refilledAt time.Time
+	dropped    int
 }
 
+const (
+	logKeyCap = 4096
+	logRate   = 20.0 // lines per second
+	logBurst  = 50.0
+)
+
 func newLogLimiter(period time.Duration, now func() time.Time) *logLimiter {
-	return &logLimiter{period: period, now: now, last: map[string]time.Time{}, out: log.Printf}
+	return &logLimiter{period: period, now: now, last: map[string]time.Time{}, out: log.Printf, tokens: logBurst, refilledAt: now()}
+}
+
+// setOut swaps the output (tests).
+func (l *logLimiter) setOut(out func(string, ...any)) {
+	l.mu.Lock()
+	l.out = out
+	l.mu.Unlock()
 }
 
 func (l *logLimiter) logf(key, format string, args ...any) {
@@ -397,15 +441,26 @@ func (l *logLimiter) logf(key, format string, args ...any) {
 		l.mu.Unlock()
 		return
 	}
-	if len(l.last) > 4096 {
-		for k, t := range l.last {
-			if now.Sub(t) >= l.period {
-				delete(l.last, k)
-			}
-		}
+	if len(l.last) >= logKeyCap {
+		l.last = make(map[string]time.Time, 64)
 	}
 	l.last[key] = now
+	if el := now.Sub(l.refilledAt).Seconds(); el > 0 {
+		l.tokens = min(logBurst, l.tokens+el*logRate)
+	}
+	l.refilledAt = now
+	if l.tokens < 1 {
+		l.dropped++
+		l.mu.Unlock()
+		return
+	}
+	l.tokens--
+	dropped := l.dropped
+	l.dropped = 0
 	out := l.out
 	l.mu.Unlock()
+	if dropped > 0 {
+		out("pxe: %d log line(s) suppressed (rate limit)", dropped)
+	}
 	out(format, args...)
 }

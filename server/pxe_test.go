@@ -125,7 +125,7 @@ func TestPXEDecision(t *testing.T) {
 		typ   byte
 	}{
 		{"armed x64 UEFI", pxeDiscover(armedMAC, 7), false, pxeReply, "ipxe.efi", dhcpOffer},
-		{"armed x86 UEFI", pxeDiscover(armedMAC, 6), false, pxeReply, "ipxe.efi", dhcpOffer},
+		{"armed IA32 UEFI without -pxe-file-ia32: no x64 file", pxeDiscover(armedMAC, 6), false, pxeSilent, "", 0},
 		{"armed EBC", pxeDiscover(armedMAC, 9), false, pxeReply, "ipxe.efi", dhcpOffer},
 		{"armed BIOS", pxeDiscover(armedMAC, 0), false, pxeReply, "undionly.kpxe", dhcpOffer},
 		{"armed arm64 UEFI", pxeDiscover(armedMAC, 11), false, pxeReply, "ipxe-arm64.efi", dhcpOffer},
@@ -418,7 +418,7 @@ func TestCheckBootFiles(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "ipxe.efi"), []byte("x"), 0o644)
 	lines := strings.Join(checkBootFiles(PXEConfig{Dir: dir, FileX64: "ipxe.efi", FileBIOS: "undionly.kpxe"}), "\n")
-	if !strings.Contains(lines, "x64 UEFI boot file ipxe.efi: ok") || !strings.Contains(lines, `ERROR: BIOS boot file "undionly.kpxe"`) {
+	if !strings.Contains(lines, "x64 UEFI boot file \"ipxe.efi\": ok") || !strings.Contains(lines, `ERROR: BIOS boot file "undionly.kpxe"`) {
 		t.Fatal(lines)
 	}
 	if l := checkBootFiles(PXEConfig{Dir: filepath.Join(dir, "nope")}); !strings.Contains(l[0], "ERROR") {

@@ -19,7 +19,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"time"
 )
 
@@ -93,6 +92,29 @@ func lanURLs(bound net.Addr) []string {
 	return out
 }
 
+// pxeHTTPTarget derives what the iPXE boot URL advertises from the HTTP listener as bound: its real port, and its address when it
+// is bound to one specific IPv4 address (HTTP answers nowhere else). override (-pxe-ip) wins for the address. nil = per interface.
+func pxeHTTPTarget(bound net.Addr, override net.IP) (int, net.IP, error) {
+	tcp, ok := bound.(*net.TCPAddr)
+	if !ok || tcp.Port == 0 {
+		return 0, nil, fmt.Errorf("pxe: cannot tell the HTTP port from %v", bound)
+	}
+	if override != nil {
+		return tcp.Port, override.To4(), nil
+	}
+	if tcp.IP == nil || tcp.IP.IsUnspecified() {
+		return tcp.Port, nil, nil
+	}
+	ip4 := tcp.IP.To4()
+	switch {
+	case ip4 == nil:
+		return 0, nil, fmt.Errorf("pxe: HTTP is bound to %s, which PXE (IPv4) clients cannot use; bind -listen to an IPv4 address or all addresses, or set -pxe-ip", tcp.IP)
+	case ip4.IsLoopback():
+		return 0, nil, fmt.Errorf("pxe: HTTP is bound to loopback %s, which PXE clients cannot reach; bind -listen to a LAN address or all addresses", ip4)
+	}
+	return tcp.Port, ip4, nil
+}
+
 func main() {
 	listen := flag.String("listen", ":8080", "address to serve on")
 	manifests := flag.String("manifests", "", "folder of deployment manifests (*.json); default: ./manifests, next to the executable, or ../manifests")
@@ -103,7 +125,8 @@ func main() {
 	pxe := flag.Bool("pxe", false, "also answer PXE: proxyDHCP (UDP 67, 4011) and read-only TFTP (UDP 69), for armed MACs only")
 	pxeDir := flag.String("pxe-dir", "", "with -pxe: folder holding the iPXE binaries to serve over TFTP (required)")
 	pxeIP := flag.String("pxe-ip", "", "with -pxe: IPv4 address to advertise to PXE clients (default: the receiving interface's)")
-	pxeX64 := flag.String("pxe-file-x64", "ipxe.efi", "with -pxe: boot file for x86/x64 UEFI (arch 6, 7, 9); BOOTX64.EFI for a signed shim chain")
+	pxeX64 := flag.String("pxe-file-x64", "ipxe.efi", "with -pxe: boot file for x64 UEFI (arch 7, 9); BOOTX64.EFI for a signed shim chain")
+	pxeIA32 := flag.String("pxe-file-ia32", "", "with -pxe: boot file for 32-bit x86 UEFI (arch 6); empty = such clients get no offer")
 	pxeBIOS := flag.String("pxe-file-bios", "undionly.kpxe", "with -pxe: boot file for BIOS (arch 0)")
 	pxeARM := flag.String("pxe-file-arm64", "ipxe-arm64.efi", "with -pxe: boot file for arm64 UEFI (arch 11)")
 	pxeDHCP := flag.Int("pxe-dhcp-port", 67, "with -pxe: proxyDHCP broadcast port")
@@ -125,29 +148,28 @@ func main() {
 	if s.Token == "" {
 		log.Print("warning: M2W_TOKEN is not set; anyone who can reach this server can arm a machine for a wipe")
 	}
-	if *pxe {
-		cfg := PXEConfig{DHCPPort: *pxeDHCP, ProxyPort: *pxeProxy, TFTPPort: *pxeTFTP, ClientPort: 68, Dir: *pxeDir,
-			FileX64: *pxeX64, FileBIOS: *pxeBIOS, FileARM64: *pxeARM}
-		_, port, err := net.SplitHostPort(*listen)
-		if err != nil {
-			log.Fatalf("pxe: cannot read the HTTP port from -listen %q: %v", *listen, err)
-		}
-		if cfg.HTTPPort, err = strconv.Atoi(port); err != nil {
-			log.Fatalf("pxe: -listen %q needs a numeric port for the iPXE boot URL", *listen)
-		}
-		if *pxeIP != "" {
-			if cfg.AdvertiseIP = net.ParseIP(*pxeIP).To4(); cfg.AdvertiseIP == nil {
-				log.Fatalf("pxe: -pxe-ip %q is not an IPv4 address", *pxeIP)
-			}
-		}
-		if _, err := s.StartPXE(cfg); err != nil {
-			log.Fatal(err)
-		}
-	}
 	log.Printf("minute2win-server on %s, manifests %s, images %s", *listen, *manifests, *base)
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if *pxe {
+		cfg := PXEConfig{DHCPPort: *pxeDHCP, ProxyPort: *pxeProxy, TFTPPort: *pxeTFTP, ClientPort: 68, Dir: *pxeDir,
+			FileX64: *pxeX64, FileBIOS: *pxeBIOS, FileARM64: *pxeARM, FileIA32: *pxeIA32}
+		var override net.IP
+		if *pxeIP != "" {
+			if override = net.ParseIP(*pxeIP).To4(); override == nil {
+				log.Fatalf("pxe: -pxe-ip %q is not an IPv4 address", *pxeIP)
+			}
+		}
+		// The HTTP listener is already bound, so the boot URL uses the port it really got (-listen :0 included) and, when it is
+		// bound to one address, that address (the only one the URL can work on).
+		if cfg.HTTPPort, cfg.AdvertiseIP, err = pxeHTTPTarget(ln.Addr(), override); err != nil {
+			log.Fatal(err)
+		}
+		if _, err := s.StartPXE(cfg); err != nil {
+			log.Fatal(err)
+		}
 	}
 	for _, u := range lanURLs(ln.Addr()) {
 		log.Printf("targets chain: %s/boot/${net0/mac}", u)
