@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "deployment": { "name": "Windows 11 Pro (26300.9457, en-us)" },
+  "image": {
+    "source": "https",
+    "uri": "https://boot.spillerstech.us/windows11/install.wim",
+    "sha256": "b534f0053accb9b919e7a54dd8af953e6b80bfbd85b79118ec362145890ba004",
+    "edition": "Windows 11 Pro"
+  },
+  "disk": { "minSizeGB": 64, "stagingGB": 12 },
+  "oobe": { "adminUser": null },
+  "tenant": { "id": "none", "joinMethod": "none" },
+  "guard": { "countdownSeconds": 10 }
+}

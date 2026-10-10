@@ -1,0 +1,22 @@
+{{define "mac-input"}}<input id="mac" name="mac" placeholder="52:54:00:12:34:56" required autocomplete="off">{{end}}
+{{define "mac-oob"}}<input id="mac" name="mac" placeholder="52:54:00:12:34:56" required autocomplete="off" hx-swap-oob="true">{{end}}
+
+{{define "msg"}}<p id="msg" role="status"{{if .}} class="{{.Kind}}"{{end}}>{{if .}}{{.Text}}{{end}}</p>{{end}}
+
+{{define "armed"}}
+{{if .}}<table id="armed"><thead><tr><th>MAC</th><th>Profile</th><th>Expires</th><th></th></tr></thead><tbody>
+{{range .}}<tr><td class="mono">{{.MAC}}</td><td>{{.Manifest}}</td><td>{{.Expires.Local.Format "15:04:05"}}</td>
+<td><form hx-post="ui/disarm" hx-target="#msg" hx-swap="outerHTML" hx-include="#token"><input type="hidden" name="mac" value="{{.MAC}}"><button>Disarm</button></form></td></tr>
+{{end}}</tbody></table>
+{{else}}<p class="empty" id="armed-empty">Nothing armed. Machines that network-boot now will boot their own disk.</p>{{end}}
+{{end}}
+
+{{define "deployments"}}
+{{range .}}<article class="card status-{{.Status}}">
+  <div><strong class="mono">{{.MAC}}</strong> <span>{{.Who}}</span></div>
+  <div class="clock {{if .Under}}under{{else}}over{{end}}">{{printf "%.1f" .Seconds}} s</div>
+  <div class="phase">{{.Status}}: {{.Phase}}{{if .Message}} ({{.Message}}){{end}}</div>
+  <div class="laps">{{.Manifest}} · booted {{.Ago}} ago{{range .Laps}} · {{.Name}} {{.Seconds}}s{{end}}</div>
+</article>
+{{else}}<p class="empty" id="dep-empty">No deployments yet.</p>{{end}}
+{{end}}

@@ -1,0 +1,18 @@
+#!ipxe
+# Boots the minute2win WinPE STATICALLY: every boot that reaches this script deploys (and wipes). Use it only behind a per-boot
+# opt-in, such as kvm-it's "press n" autoexec. For dnsmasq/PXE use minute2win-server's /boot/${net0/mac} instead: its arm is
+# consumed on boot, so a machine whose firmware network-boots first cannot wipe itself again after the deploy reboots it.
+# (bcdboot also puts Windows Boot Manager first in the UEFI order, which normally prevents that loop, but firmware with a
+# forced network-first or USB-first policy ignores it.)
+# The manifest initrd picks the deployment profile; wimboot places it at X:\Windows\System32\manifest.json.
+
+set base https://boot.spillerstech.us/windows11
+isset ${m2w-manifest} || set m2w-manifest win11-pro
+
+kernel ${base}/wimboot
+initrd ${base}/BCD BCD
+initrd ${base}/boot.sdi boot.sdi
+initrd ${base}/minute2win/manifests/${m2w-manifest}.json manifest.json
+initrd ${base}/boot.wim boot.wim
+
+boot
