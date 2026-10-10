@@ -59,3 +59,7 @@ jobs:
         run: docker run --rm -v "$PWD":/repo -w /repo docker.io/rhysd/actionlint:latest -color
       - name: GitHub setup script, against a fake gh
         run: tests/setup-signing-github.test.sh
+      - name: Release workflow shell steps, against a mock gh
+        run: |
+          pip install pyyaml
+          python3 tests/release_workflow_test.py

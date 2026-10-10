@@ -225,9 +225,12 @@ jobs:
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)" = "true" ] \
               || { echo "release $TAG is already published; refusing to modify it. Cut a new patch version." >&2; exit 1; }
-            for a in $(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name'); do
+            # A plain assignment, so a failed listing stops the run (set -e does not see a failure inside `for x in $(...)`).
+            old="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')"
+            while IFS= read -r a; do
+              [ -n "$a" ] || continue
               gh release delete-asset "$TAG" "$a" --repo "$GITHUB_REPOSITORY" --yes
-            done
+            done <<<"$old"
           else
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "minute2win ${TAG#v}" --notes "Draft: notes to follow."
           fi

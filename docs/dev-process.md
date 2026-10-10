@@ -86,3 +86,8 @@ Every finding is reproduced against source before it is accepted (corporate-stra
 
 - Not verified: the Azure setup and the `signing check` workflow have **not been run**; no signed binary exists yet; the Windows
   exe has never run on Windows.
+- Round 2 (astra, run with the vendored codex 0.162.1 binary: the `codex` shim vanished mid-session in an upgrade and the first two attempts
+  never read the repo, so they are not counted as reviews): #1, #2, #4, #5, #6 CLOSED. **#3 NOT CLOSED, confirmed**: the old-asset listing
+  sat inside `for a in $(gh ...)`, where a failure does not trip `set -e`, so a failed listing went on to upload. Fixed with a checked
+  assignment; `tests/release_workflow_test.py` now executes the real allowlist and upload steps (extracted from the YAML) against a mock `gh`
+  and runs in CI.
