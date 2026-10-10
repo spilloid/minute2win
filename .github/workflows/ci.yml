@@ -25,7 +25,9 @@ jobs:
         run: |
           test -z "$(gofmt -l .)"
           go vet ./...
-          go test ./...
+          go test -race ./...
+          # the release builds these; catch a platform break in the PR, not at the tag
+          for t in windows/amd64 linux/arm64 linux/amd64; do GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null .; done
   ui:
     runs-on: ubuntu-latest
     steps:

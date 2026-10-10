@@ -1,6 +1,8 @@
 name: release
-# On a v* tag: build the server for Linux, stage the boot files, checksum everything and attach it to the GitHub release for
-# that tag (created as a draft if it does not exist yet). Assets are only ever built here, never by hand.
+# On a v* tag (or a manual run for an existing tag): build everything, sign the Windows server with Azure Artifact Signing, verify
+# the signature, and only then attach all assets to the release. If signing is not configured or fails, NOTHING is attached:
+# a release is never published unsigned. No key, PFX or password exists anywhere; the sign job authenticates with a GitHub
+# OIDC federated credential (STD-006). Setup: docs/RELEASING.md ("CI signing").
 on:
   push:
     tags: ['v*']
@@ -9,37 +11,165 @@ on:
       tag:
         description: existing tag to (re)build assets for
         required: true
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  assets:
+  build:
+    name: Build (Linux and unsigned Windows server, boot files)
     runs-on: ubuntu-latest
-    env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
+      - id: meta
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ steps.meta.outputs.tag }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: server/go.mod
-      - name: version matches tag
-        run: test "v$(cat VERSION)" = "$TAG"
-      - name: build
+          cache-dependency-path: server/go.sum
+      - name: Check the tag against VERSION
+        run: test "v$(cat VERSION)" = "${{ steps.meta.outputs.tag }}"
+      - name: Build
         run: |
-          V="${TAG#v}"; mkdir -p out
+          set -euo pipefail
+          TAG="${{ steps.meta.outputs.tag }}"; V="${TAG#v}"; mkdir -p out stage-win/minute2win-server
           for arch in amd64 arm64; do
             d="minute2win-server-$V-linux-$arch"; mkdir -p "$d"
             (cd server && CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "../$d/minute2win-server" .)
             cp -r manifests LICENSE THIRD_PARTY_NOTICES.md "$d/"
             tar czf "out/$d.tar.gz" "$d"
           done
+          # The Windows server goes to the signing job unsigned; it is zipped only after it is signed.
+          (cd server && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "../stage-win/minute2win-server/minute2win-server.exe" .)
+          cp -r manifests LICENSE THIRD_PARTY_NOTICES.md stage-win/minute2win-server/
           tools/stage.sh stage
           (cd stage && zip -qr "../out/minute2win-$V-bootfiles.zip" windows11)
-          (cd out && sha256sum * > SHA256SUMS && cat SHA256SUMS)
-      - name: attach
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-and-boot-assets
+          path: out/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-windows
+          path: stage-win/
+          if-no-files-found: error
+
+  sign:
+    name: Sign and verify the Windows server
+    needs: build
+    runs-on: windows-latest
+    # The OIDC subject for a job in an environment is fixed by the environment whether it runs for a tag or a manual dispatch,
+    # so one federated credential covers both (scripts/setup-signing-azure.ps1).
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+      # Fail before signing anything, and never fall back to an unsigned release.
+      - name: Check signing configuration
+        shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          SIGNING_ENDPOINT: ${{ vars.SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.SIGNING_PROFILE }}
+          SIGNING_EXPECTED_SUBJECT: ${{ vars.SIGNING_EXPECTED_SUBJECT }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "minute2win ${TAG#v}" --notes "Draft: notes to follow."
-          gh release upload "$TAG" out/* --clobber
+          $missing = @('SIGNING_ENDPOINT', 'SIGNING_ACCOUNT', 'SIGNING_PROFILE', 'SIGNING_EXPECTED_SUBJECT',
+                       'AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID') |
+            Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) }
+          if ($missing) {
+            throw "Code signing is not configured; missing: $($missing -join ', '). Set them under Settings > Environments > release (docs/RELEASING.md, CI signing). Releases are never published unsigned."
+          }
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned-windows
+          path: stage-win
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign the Windows server
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\stage-win\minute2win-server
+          files-folder-filter: exe
+          file-digest: SHA256
+          # Signing certificates last three days; without the countersignature the release stops verifying.
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+      - name: Verify the signature and timestamp
+        shell: pwsh
+        run: ./scripts/verify-signature.ps1 -Files stage-win/minute2win-server/minute2win-server.exe -ExpectedSubject '${{ vars.SIGNING_EXPECTED_SUBJECT }}'
+      - name: Zip, record signatures
+        shell: pwsh
+        run: |
+          $v = $env:TAG.TrimStart('v'); New-Item -ItemType Directory -Force out | Out-Null
+          Compress-Archive -Path stage-win/minute2win-server -DestinationPath "out/minute2win-server-$v-windows-x64.zip"
+          $sig = Get-AuthenticodeSignature stage-win/minute2win-server/minute2win-server.exe
+          "file  status  signer" | Set-Content out/SIGNATURES.txt
+          "minute2win-server.exe  $($sig.Status)  $($sig.SignerCertificate.Subject)" | Add-Content out/SIGNATURES.txt
+          if ($sig.Status -ne 'Valid') { throw "Windows does not consider the signed executable Valid: $($sig.Status)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-windows
+          path: out/
+          if-no-files-found: error
+
+  # Attaches everything together, only after every file is signed and verified. A failure above attaches nothing.
+  publish:
+    name: Attach assets to the release
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-and-boot-assets
+          path: assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed-windows
+          path: assets
+      - name: Checksums
+        working-directory: assets
+        run: |
+          ls -l
+          sha256sum $(ls | grep -v -e '^SHA256SUMS$') > SHA256SUMS
+          sha256sum --check --strict SHA256SUMS
+      - name: Upload
+        working-directory: assets
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "minute2win ${TAG#v}" --notes "Draft: notes to follow."
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber *

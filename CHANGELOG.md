@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Windows: the server builds for Windows (`minute2win-server-X-windows-x64.zip`), opens the UI in your browser on start, finds
+  `manifests/` next to the executable, and prints the line targets should chain (`http://<this PC>:8080/boot/${net0/mac}`).
+  With kvm-it's USB boot drive a laptop running it is the whole deploy console: the target only needs ordinary DHCP.
+- Release pipeline: the Windows executable is **Authenticode-signed in CI** with Azure Artifact Signing (GitHub OIDC, no key
+  or secret that can sign), the signature and timestamp are verified, and nothing is attached to a release unless every file passed;
+  an unconfigured or failed signing step stops the release rather than publishing unsigned. A manual `signing check` workflow proves
+  the setup without publishing. `scripts/setup-signing-azure.ps1` and `scripts/setup-signing-github.sh` wire it up (split so
+  that no GitHub token has to be on the machine that holds the `az` login).
+- CI cross-compiles for Windows and arm64 on every PR and runs the Go tests with the race detector.
+
 ## [0.1.0] - 2026-10-10 (unit-tested, never booted)
 
 First version. It grew from the Windows 11 network-install scripts staged in R2 on 2026-10-05 (`install.ps1`,

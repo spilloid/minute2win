@@ -15,3 +15,26 @@ A checklist (STD-003 rule 3): every step is a step.
 5. **Publish as a normal (Latest) release.** Anything not yet verified or known to be unsafe goes in the notes' "Known issues"
    **and** a linked tracking issue, written concretely: what, where, impact, workaround.
 6. **Deploying the boot files** (uploading to R2 or a LAN web server) is a separate, deliberate step, not part of a release.
+
+## CI signing (one-time setup)
+
+The Windows executable is signed in CI with [Azure Artifact Signing](https://learn.microsoft.com/azure/artifact-signing/), the same
+setup as SpoolSmith and kvm-it (D-0047). There is no key, PFX or password anywhere (STD-006): the `sign` job gets a short-lived
+token through a GitHub OIDC federated credential that trusts exactly `<repo>:environment:release`.
+
+Prerequisite (already true for the studio): a signing account with an **Active** public-trust certificate profile
+(`jdspille` / `primary-profile`, East US). Then, once per repo:
+
+1. **GitHub half, step 1** (wherever `gh` is signed in as a repo admin):
+   `scripts/setup-signing-github.sh prefix` turns on immutable OIDC subject claims and prints the subject prefix.
+2. **Azure half** (wherever `az login` works for someone who can create app registrations and assign roles; it needs no GitHub
+   access): `pwsh scripts/setup-signing-azure.ps1 -AccountName jdspille -ResourceGroup RG0 -ProfileName primary-profile -SubjectPrefix <prefix>`
+   creates the `minute2win-release-signing` app registration and service principal, the federated credential, and the **Certificate
+   Profile Signer** role on that profile only. It prints JSON.
+3. **GitHub half, step 2:** `scripts/setup-signing-github.sh apply < that.json` creates the `release` environment, restricts it to
+   `main` and `v*` tags, and sets the variables and the three Azure identifiers (IDs, not key material).
+4. Run the **signing check** workflow (Actions, run manually). It builds, signs and verifies a throwaway executable and publishes
+   nothing. Do this before the first tag and after any change here.
+
+Why two scripts: so no GitHub token has to be copied onto the machine that holds the `az` login. Both are idempotent.
+If signing is not configured, `release.yml` fails before signing and attaches **nothing**: a release is never published unsigned.
