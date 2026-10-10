@@ -19,7 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: server/go.mod
+          go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
+          cache: false
       - name: vet + test
         working-directory: server
         run: |
@@ -34,7 +35,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: server/go.mod
+          go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
+          cache: false
       - name: Playwright UX check
         run: |
           pip install playwright==1.55.0

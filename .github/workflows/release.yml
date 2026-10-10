@@ -29,8 +29,8 @@ jobs:
           ref: ${{ steps.meta.outputs.tag }}
       - uses: actions/setup-go@v5
         with:
-          go-version-file: server/go.mod
-          cache-dependency-path: server/go.sum
+          go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
+          cache: false
       - name: Check the tag against VERSION
         run: test "v$(cat VERSION)" = "${{ steps.meta.outputs.tag }}"
       - name: Build
