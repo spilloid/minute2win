@@ -19,7 +19,7 @@ import (
 
 // #1: an arm consumed (or disarmed, or a server degraded) after the decision but before the send gets no reply.
 func TestPXERecheckBeforeSend(t *testing.T) {
-	for _, change := range []string{"boot", "disarm", "degrade"} {
+	for _, change := range []string{"boot", "disarm", "degrade", "expire"} {
 		t.Run(change, func(t *testing.T) {
 			f := newFixture(t, "")
 			client, _ := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
@@ -32,6 +32,10 @@ func TestPXERecheckBeforeSend(t *testing.T) {
 					f.do(t, "GET", "/boot/"+armedMAC, "", "")
 				case "disarm":
 					f.s.doDisarm(armedMAC)
+				case "expire":
+					f.s.mu.Lock() // the fixture clock is read by the server under s.mu
+					f.now = f.now.Add(3 * time.Hour)
+					f.s.mu.Unlock()
 				case "degrade":
 					f.s.mu.Lock()
 					f.s.degraded = true
@@ -407,9 +411,17 @@ func TestTFTPSymlinkSwapRace(t *testing.T) {
 			os.Rename(tmp, name)
 		}
 	}()
-	served := 0
-	for i := 0; i < 300; i++ {
+	served, refused := 0, 0
+	for i := 0; i < 300 || served == 0 || refused == 0; i++ {
+		if i >= 3000 {
+			stop.Store(true)
+			wg.Wait()
+			t.Fatalf("race not exercised in 3000 fetches: %d served, %d refused", served, refused)
+		}
 		got, err := tftpGet(addr, "f", nil)
+		if err != nil {
+			refused++
+		}
 		if err == nil {
 			served++
 			if string(got) != "inside" {
@@ -421,7 +433,11 @@ func TestTFTPSymlinkSwapRace(t *testing.T) {
 	}
 	stop.Store(true)
 	wg.Wait()
-	t.Logf("%d of 300 fetches served the inside file; the rest were refused", served)
+	// Non-vacuous: both paths ran (a normal fetch of the regular file, and a refusal of the swapped-in symlink).
+	if served == 0 || refused == 0 {
+		t.Fatalf("served %d, refused %d: the race was not exercised", served, refused)
+	}
+	t.Logf("%d fetches served the inside file, %d were refused", served, refused)
 }
 
 // #7: a duplicate RRQ while a transfer is running is a retransmission, not a second transfer.
