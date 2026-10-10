@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "deployment": { "name": "Example tenant, Windows 11 Pro" },
+  "image": {
+    "source": "https",
+    "uri": "https://images.example.com/win11.wim",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "edition": "Windows 11 Pro"
+  },
+  "disk": { "minSizeGB": 64, "stagingGB": 12 },
+  "oobe": { "adminUser": "tech" },
+  "tenant": { "id": "example", "joinMethod": "none" },
+  "guard": { "countdownSeconds": 0 }
+}

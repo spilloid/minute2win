@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OOBE answer file for minute2win. PUBLIC TEMPLATE: no secrets. With a manifest oobe.adminUser (or -AdminUser), the engine
+  replaces __USER__ and __PASSWORD__ (the known baseline password) and writes W:\Windows\Panther\unattend.xml.
+  Skips the EULA, online-account and Wi-Fi screens and creates one local administrator who logs on once automatically;
+  the first logon deletes this file and forces a password change at the next logon.
+  UNTESTED on build 26300 (OOBE answer-file behaviour changes between builds; check the first run on a VM).
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <ProtectYourPC>3</ProtectYourPC>
+        <SkipMachineOOBE>true</SkipMachineOOBE>
+        <SkipUserOOBE>true</SkipUserOOBE>
+      </OOBE>
+      <UserAccounts>
+        <LocalAccounts>
+          <LocalAccount wcm:action="add">
+            <Name>__USER__</Name>
+            <Group>Administrators</Group>
+            <Password>
+              <Value>__PASSWORD__</Value>
+              <PlainText>true</PlainText>
+            </Password>
+          </LocalAccount>
+        </LocalAccounts>
+      </UserAccounts>
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <LogonCount>1</LogonCount>
+        <Username>__USER__</Username>
+        <Password>
+          <Value>__PASSWORD__</Value>
+          <PlainText>true</PlainText>
+        </Password>
+      </AutoLogon>
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>Remove the answer file (it holds the password)</Description>
+          <CommandLine>cmd /c del /f /q %WINDIR%\Panther\unattend.xml %WINDIR%\Panther\UnattendGC\*.xml</CommandLine>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Description>Force the baseline password to be changed at the next logon</Description>
+          <CommandLine>net user __USER__ /logonpasswordchg:yes</CommandLine>
+        </SynchronousCommand>
+      </FirstLogonCommands>
+    </component>
+  </settings>
+</unattend>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>minute2win</title>
+<link rel="stylesheet" href="static/style.css">
+<script src="static/htmx.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>minute2win</h1>
+  <p class="tag">boot to flashed Windows, against the clock</p>
+</header>
+<main>
+  <section aria-labelledby="arm-h">
+    <h2 id="arm-h">Arm a machine</h2>
+    <p class="warn">An armed machine is <strong>wiped on its next network boot</strong>, with no questions asked. One arm is one wipe:
+      the machine is disarmed when it boots. Unused arms expire.</p>
+    <form id="arm" hx-post="ui/arm" hx-target="#msg" hx-swap="outerHTML">
+      <label>MAC address {{template "mac-input" ""}}</label>
+      <label>Profile <select name="manifest" required>{{range .Manifests}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+      {{if .TokenRequired}}<label>Token <input id="token" name="token" type="password" autocomplete="current-password"></label>{{end}}
+      <button type="submit">Arm for wipe</button>
+    </form>
+    {{template "msg" .Msg}}
+  </section>
+  <section aria-labelledby="armed-h">
+    <h2 id="armed-h">Armed</h2>
+    <div id="armed-panel" hx-get="ui/armed" hx-trigger="load, every 2s, m2w-changed from:body"></div>
+  </section>
+  <section aria-labelledby="dep-h">
+    <h2 id="dep-h">Deployments</h2>
+    <div id="deployments" hx-get="ui/deployments" hx-trigger="load, every 1s"></div>
+  </section>
+</main>
+</body>
+</html>

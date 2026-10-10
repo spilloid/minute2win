@@ -1,0 +1,30 @@
+:root { --bg: #f7f7f5; --fg: #1b1b1b; --muted: #666; --card: #fff; --line: #ddd; --accent: #0b6bcb; --warn: #9a3412; --on-warn: #fff; --ok: #15803d; --bad: #b91c1c; }
+@media (prefers-color-scheme: dark) { :root { --bg: #141414; --fg: #eee; --muted: #9a9a9a; --card: #1e1e1e; --line: #333; --accent: #5aa9f5; --warn: #fb923c; --on-warn: #1b1b1b; --ok: #4ade80; --bad: #f87171; } }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+header, main { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+header { padding-top: 20px; }
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.5px; }
+.tag { margin: 2px 0 0; color: var(--muted); }
+h2 { font-size: 17px; margin: 28px 0 8px; }
+section { overflow-wrap: anywhere; }
+.warn { color: var(--warn); margin: 0 0 10px; }
+form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+input, select, button { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); min-width: 0; }
+input[name=mac] { width: 15em; max-width: 100%; font-family: ui-monospace, monospace; }
+button { cursor: pointer; }
+button[type=submit] { background: var(--warn); border-color: var(--warn); color: var(--on-warn); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; background: var(--card); }
+th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); }
+td.mono, .mono { font-family: ui-monospace, monospace; }
+.empty { color: var(--muted); }
+#msg { min-height: 1.4em; margin: 8px 0 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; }
+.clock { font: 600 30px/1 ui-monospace, monospace; text-align: right; grid-row: span 3; align-self: center; }
+.clock.under { color: var(--ok); } .clock.over { color: var(--fg); }
+.status-failed .clock, .status-failed .phase { color: var(--bad); }
+.laps { color: var(--muted); font-size: 13px; }
+@media (max-width: 520px) { .card { grid-template-columns: 1fr; } .clock { grid-row: auto; text-align: left; } th:nth-child(3), td:nth-child(3) { display: none; } }
+#msg.err { color: var(--bad); }

@@ -1,0 +1,45 @@
+name: release
+# On a v* tag: build the server for Linux, stage the boot files, checksum everything and attach it to the GitHub release for
+# that tag (created as a draft if it does not exist yet). Assets are only ever built here, never by hand.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: existing tag to (re)build assets for
+        required: true
+permissions:
+  contents: write
+jobs:
+  assets:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - name: version matches tag
+        run: test "v$(cat VERSION)" = "$TAG"
+      - name: build
+        run: |
+          V="${TAG#v}"; mkdir -p out
+          for arch in amd64 arm64; do
+            d="minute2win-server-$V-linux-$arch"; mkdir -p "$d"
+            (cd server && CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "../$d/minute2win-server" .)
+            cp -r manifests LICENSE THIRD_PARTY_NOTICES.md "$d/"
+            tar czf "out/$d.tar.gz" "$d"
+          done
+          tools/stage.sh stage
+          (cd stage && zip -qr "../out/minute2win-$V-bootfiles.zip" windows11)
+          (cd out && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+      - name: attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --title "minute2win ${TAG#v}" --notes "Draft: notes to follow."
+          gh release upload "$TAG" out/* --clobber
