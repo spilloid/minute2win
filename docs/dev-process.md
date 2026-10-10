@@ -116,3 +116,29 @@ Every finding is reproduced against source before it is accepted (corporate-stra
 - Not verified: any real PXE firmware; UEFI firmware PXE and our TFTP serving a real client (OVMF in the harness never attempted a
   network boot); BIOS firmware PXE with `undionly.kpxe`; the Secure Boot shim chain; anything on Windows beyond compiling. No astra
   review has been run on this change yet (STD-001 still owed).
+
+### PXE adversarial review round 1
+
+astra (Codex `gpt-6-astra`) reviewed feat/pxe after the rebase onto main. 11 findings; the orchestrator adjudicated them (#1
+narrowed, all others accepted). Each fix has a test that was checked by planting the old behaviour back and watching it fail.
+
+| # | Sev | Finding | Adjudication | Change |
+|---|---|---|---|---|
+| 1 | High | Arm checked under `s.mu`, then released before the reply is built and sent | **Accepted, narrowed**: don't hold `s.mu` across the write | Re-check armed and not degraded immediately before the send, with a 250 ms write deadline. The remaining window is microseconds and harmless: an offer only names iPXE or the `/boot` URL, and `/boot` (decided under `s.mu`) is the only thing that deploys. Test: a hook consumes, disarms or degrades between the decision and the send; no reply |
+| 2 | Med | Option overload (52) ignored, so options in `file`/`sname` were missed | Accepted | Parsed in RFC 3396 order (options, file, sname); a malformed overloaded field drops the packet. Tests: PXE options and iPXE user class found in file/sname, concatenation order, 7 malformed cases |
+| 3 | Med | `-listen :0` advertised HTTP port 0 | Accepted | HTTP binds first; `pxeHTTPTarget` takes the port from the bound listener and advertises the bound IP when there is one (loopback or IPv6-only refused). Table test plus a real `:0` listener |
+| 4 | High | Log rate-limit maps unbounded; attacker bytes logged raw | Accepted | Hard 4096-key cap with an O(1) reset, a global 20 lines/s (burst 50) budget with a "suppressed" count, `%q` for file names. Tests: 100k distinct keys stay under the cap and within budget; a file name with a newline is logged quoted (served and refused) |
+| 5 | High | `timeout=255` let 64 RRQs hold every slot for ~25 minutes | Accepted | `timeout` accepted only for 1..10 s (echoed exactly, otherwise left out of the OACK); 60 s lifetime and 20 s idle limit regardless; at most 4 transfers per client IP as well as 64 in total; shutdown closes transfer sockets. Tests: negotiation table, per-IP cap, 64-slot saturation then recovery, idle limit, lifetime, close returns at once |
+| 6 | Med | Check-then-open symlink race | Accepted | `os.OpenRoot` + `root.Open`; only the regular file at that name (Lstat + SameFile on the opened file), so symlinks are now refused even inside the directory. Test: a name flipped between a file and a symlink to an outside file 300 times never serves the outside file (the old-style open served it 3 of 3 runs) |
+| 7 | Med | A duplicate RRQ started a second transfer | Accepted | Same client address + file while a transfer runs is ignored. Tests: duplicate RRQs give one TID; duplicate ACKs don't trigger a resend |
+| 8 | Med | Arch 6 (IA32 UEFI) got the x64 file | Accepted | New `-pxe-file-ia32` (default empty: no offer); 7 and 9 stay x64 |
+| 9 | Low | Options 93/94 not echoed (RFC 4578 section 2) | Accepted | Echoed; 94 only if sent |
+| 10 | Low | SO_REUSEPORT hard-coded 0xf on all Linux (MIPS is 0x200); fallback compiled for Solaris etc. | Accepted | Linux file limited to amd64/arm64/386/arm/riscv64/ppc64le/s390x/loong64 (all 0xf, checked in the Go 1.27.1 syscall sources); fallback limited to darwin/freebsd/netbsd/openbsd (syscall defines SO_REUSEPORT there); a stub everywhere else makes `-pxe` fail at startup with a clear error. No runtime test is possible for the stub on this host; evidence is `go vet` + `go build` for linux/mips, solaris/amd64, freebsd/amd64, darwin/arm64, plan9/amd64, windows/amd64 and linux/arm64, plus builds for 17 more GOOS/GOARCH pairs |
+| 11 | Med | `pxe-lan.sh` could certify "second boot ignored" with no evidence | Accepted | Fails on any setup/container/qemu failure; tcpdump on the bridge per boot; boot 2 must show the VM's PXE DHCPDISCOVER and zero replies from minute2win on UDP 67/4011. Run: PASS. With an always-armed server planted: FAIL ("minute2win replied on boot 2"), a case the old log-based check would have passed because the offer line was rate-limited |
+
+Also added: a loopback end-to-end test that reads replies concurrently while arms flip (every reply well-formed, yiaddr 0).
+Two planted bugs did not fail a test, and both were redundant checks rather than gaps: removing only the first duplicate-RRQ check
+(the second, under the lock, still catches it), and opening with `os.Open` while the Lstat/SameFile check remains (that check alone still
+refuses a swapped name). With both halves removed, each is caught.
+Still not verified: everything listed in CLAUDE.md for real PXE firmware (UEFI and BIOS firmware PXE, TFTP to a real client, Secure
+Boot, Windows).

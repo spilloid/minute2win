@@ -18,6 +18,11 @@
   more offers. Boot file by client architecture (`-pxe-file-x64`, `-pxe-file-bios`, `-pxe-file-arm64`); a client that is already iPXE
   gets the `/boot/<mac>` URL instead of iPXE again. Clear startup errors for privileged ports and for a port another DHCP server holds.
   Standard library only (no new dependencies). No iPXE binary is included: point `-pxe-dir` at your own.
+- Built-in PXE hardened after adversarial review: the armed check is repeated just before each reply; DHCP option overload is read;
+  the iPXE URL uses the HTTP listener's real port and its bound address; 32-bit x86 UEFI (arch 6) gets only the new `-pxe-file-ia32`
+  (none by default) instead of the x64 file; options 93/94 are echoed; TFTP opens through `os.Root`, refuses all symlinks, caps
+  transfers per client IP and their lifetime/idle time, accepts `timeout` only from 1 to 10 s, ignores duplicate requests, and stops
+  promptly on shutdown; logging has a hard key cap and a global rate budget; unsupported platforms build but refuse `-pxe`.
   Status: unit-tested and run once in a QEMU VM on a simulated LAN (BIOS iPXE stage, `tests/pxe/pxe-lan.sh`); never run on real PXE
   firmware, UEFI firmware PXE + TFTP, or Secure Boot.
 

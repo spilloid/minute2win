@@ -84,27 +84,34 @@ sudo ./minute2win-server -manifests ../manifests -pxe -pxe-dir /srv/ipxe      # 
   no full-DHCP mode.
 - **Only armed MACs get an answer.** An unarmed or unknown machine gets no reply at all, so it boots its own disk and the network
   behaves as if minute2win were not there. The PXE path never consumes the arm; `GET /boot/{mac}` does. After that, the machine's
-  next PXE request gets no offer, so firmware that always network-boots first boots Windows instead of wiping again.
+  next PXE request gets no offer, so firmware that always network-boots first boots Windows instead of wiping again. The armed check
+  runs again immediately before each reply is sent, so an arm consumed or removed in the meantime gets no reply.
 - Only DHCPDISCOVER/DHCPREQUEST carrying vendor class `PXEClient` and a client architecture (option 93) are considered. The reply
-  echoes `PXEClient` and the client UUID (option 97), sets PXE discovery control to 8 (boot the file named here: no menu), and names
+  echoes `PXEClient`, the client architecture (93), network interface identifier (94, if sent) and UUID (97), sets PXE discovery control to 8 (boot the file named here: no menu), and names
   this server in `siaddr` and the boot file (field and option 67). On UDP 67, a DHCPREQUEST is answered only if it names this server
-  (option 54); anything else there belongs to the real DHCP server. UDP 4011 answers the PXE REQUEST/ACK step.
-- **Boot file by architecture** (option 93): 0 (BIOS) `undionly.kpxe`; 6, 7, 9 (x86/x64 UEFI, EBC) `ipxe.efi`; 11 (arm64 UEFI)
-  `ipxe-arm64.efi`; anything else is ignored. Change them with `-pxe-file-bios`, `-pxe-file-x64`, `-pxe-file-arm64`.
+  (option 54); anything else there belongs to the real DHCP server. UDP 4011 answers the PXE REQUEST/ACK step. DHCP option overload (52) is
+  honoured: options carried in the `file`/`sname` fields are read too, and a malformed overloaded field drops the packet.
+- **Boot file by architecture** (option 93): 0 (BIOS) `undionly.kpxe`; 7, 9 (x64 UEFI, EBC) `ipxe.efi`; 11 (arm64 UEFI)
+  `ipxe-arm64.efi`; 6 (32-bit x86 UEFI) only `-pxe-file-ia32`, which is empty by default, so such clients get no offer (a 64-bit
+  binary would not run on them); anything else is ignored. Change them with `-pxe-file-bios`, `-pxe-file-x64`, `-pxe-file-arm64`,
+  `-pxe-file-ia32`.
 - **No loop through iPXE.** When the client is already iPXE (user class `iPXE`, or option 175), it gets
-  `http://<server-ip>:<port>/boot/<mac>` instead of the iPXE binary again. The port comes from `-listen`, the MAC from the packet.
+  `http://<server-ip>:<port>/boot/<mac>` instead of the iPXE binary again. The port is the one the HTTP listener actually bound (so `-listen :0` works), the
+  MAC comes from the packet.
 - **Which address it advertises:** on Linux, the address of the interface the request arrived on (and the broadcast reply leaves on
   that interface). Elsewhere, the host's only IPv4 address; with several, it refuses to start until you set `-pxe-ip`. `-pxe-ip`
-  always overrides (siaddr and the iPXE URL).
+  always overrides (siaddr and the iPXE URL). If `-listen` names one IPv4 address, that address is advertised (HTTP answers nowhere
+  else); a loopback or IPv6-only `-listen` with `-pxe` is refused at startup.
 - **Where replies go:** to the relay (`giaddr`) if relayed; to the client's address if it already has one; otherwise broadcast to
   port 68, since there is no offered address to unicast to. Port 4011 replies go back to the sender.
 
 | Flag | Default | |
 |---|---|---|
 | `-pxe` | off | Turn the PXE front end on |
-| `-pxe-dir` | (required) | Folder served over TFTP. Only regular files directly inside it; no subfolders, `..`, absolute paths, or symlinks leading out |
+| `-pxe-dir` | (required) | Folder served over TFTP. Only regular files directly inside it; no subfolders, `..`, absolute paths, or symlinks (not even ones pointing inside: copy the file instead) |
 | `-pxe-ip` | receiving interface | IPv4 address to advertise |
 | `-pxe-file-x64`, `-pxe-file-bios`, `-pxe-file-arm64` | `ipxe.efi`, `undionly.kpxe`, `ipxe-arm64.efi` | Boot file per architecture |
+| `-pxe-file-ia32` | (empty: no offer) | Boot file for 32-bit x86 UEFI (arch 6) |
 | `-pxe-dhcp-port`, `-pxe-proxy-port`, `-pxe-tftp-port` | 67, 4011, 69 | UDP ports |
 
 **Privileges.** Ports 67, 69 and 4011 need root on Linux, or `sudo setcap cap_net_bind_service=+ep ./minute2win-server`. On Windows,
@@ -112,6 +119,9 @@ run it as Administrator and allow UDP 67, 69 and 4011 inbound in the firewall. I
 port and why. If another process holds UDP 67 (dnsmasq or another DHCP server on the same host), it says so: stop that process or
 run minute2win on another host. UDP 67 is opened with `SO_REUSEADDR`/`SO_REUSEPORT` so it can share the port with a listener that
 allows sharing, but don't run two PXE answerers for the same clients.
+
+**Platforms.** The PXE sockets are written for Windows, macOS, FreeBSD, NetBSD, OpenBSD and Linux on amd64, arm64, 386, arm,
+riscv64, ppc64le, s390x and loong64. The server builds everywhere else too, but `-pxe` refuses to start there with an error saying so.
 
 **Built-in or dnsmasq?** Use `-pxe` when minute2win-server is the only boot service on the segment and you want one binary. Keep dnsmasq
 if you already run it, need PXE for machines that aren't armed (menus, other OSes), or want its own DHCP. Don't enable both on the same
@@ -125,11 +135,15 @@ with `-pxe-file-x64 BOOTX64.EFI`. TFTP names are matched exactly as sent (case i
 have, the log shows `tftp: ... refused "<name>"`.
 
 **Security.** TFTP has no authentication and can't know which MAC is asking, so anyone who can reach UDP 69 can download anything in
-`-pxe-dir`. Keep only the public iPXE binaries there. The guard is still the arm: a machine that isn't armed gets no proxyDHCP answer,
+`-pxe-dir`. Keep only the public iPXE binaries there. Files are opened through `os.Root`, so the directory confines the open itself.
+TFTP use is bounded: at most 64 transfers at once and 4 per client IP, each ended after 60 s or 20 s without progress, and a client's
+`timeout` option is honoured only from 1 to 10 s. Logging is bounded as well (one line per client/file per minute, at most about 20
+lines a second overall), and names from the wire are logged quoted. The guard is still the arm: a machine that isn't armed gets no proxyDHCP answer,
 and the boot script still comes from `/boot/{mac}`.
 
 **Status: unit-tested; seen working only in a QEMU VM on a simulated LAN (BIOS iPXE stage); never run on real PXE firmware.**
-`tests/pxe/pxe-lan.sh` checks offer, arm consumption and the ignored second boot. See CLAUDE.md for what is still unrun.
+`tests/pxe/pxe-lan.sh` checks, from packet captures, that boot 1's PXE DISCOVER is answered and the arm consumed, and that boot 2's
+PXE DISCOVER gets no reply. See CLAUDE.md for what is still unrun.
 
 ## Windows
 
