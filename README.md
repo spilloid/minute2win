@@ -70,6 +70,16 @@ cd server && go build -o minute2win-server . && M2W_TOKEN=... ./minute2win-serve
 dnsmasq's side is the `imaging-server-winpe` pattern (UEFI clients get `ipxe.efi`). Give iPXE an embedded or chained script that
 runs the `chain .../boot/${net0/mac}` line above.
 
+## Windows
+
+The Windows build (`minute2win-server-X-windows-x64.zip`, Authenticode-signed) is the same server: extract it, run
+`minute2win-server.exe`, and the UI opens in your browser. It prints the line a target should chain, for example
+`http://192.168.1.50:8080/boot/${net0/mac}`. Windows Firewall will ask to allow it on private networks; that is what lets the target
+reach it. Set `M2W_TOKEN` first: a laptop that can arm disk wipes should not leave the port open without one.
+
+The natural pairing is kvm-it's USB boot drive: the target only needs ordinary DHCP from your network, so no DHCP or TFTP server is
+needed. Plain PXE (a target with no kvm-it) still needs a DHCP/TFTP server on the network, such as dnsmasq on Linux.
+
 ## Manifest
 
 ```json

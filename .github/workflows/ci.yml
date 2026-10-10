@@ -19,30 +19,47 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: server/go.mod
+          go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
+          cache: false
       - name: vet + test
         working-directory: server
         run: |
           test -z "$(gofmt -l .)"
           go vet ./...
-          go test ./...
+          go test -race ./...
+          # the release builds these; catch a platform break in the PR, not at the tag
+          for t in windows/amd64 linux/arm64 linux/amd64; do GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null .; done
   ui:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: server/go.mod
+          go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
+          cache: false
       - name: Playwright UX check
         run: |
           pip install playwright==1.55.0
           python -m playwright install --with-deps chromium
           cd server && go build -o /tmp/m2w . && cd ..
           /tmp/m2w -listen 127.0.0.1:18080 -manifests manifests -data "" &
-          for i in $(seq 50); do curl -sf http://127.0.0.1:18080/api/state >/dev/null && break; sleep 0.1; done
+          for _ in $(seq 50); do curl -sf http://127.0.0.1:18080/api/state >/dev/null && break; sleep 0.1; done
           mkdir -p shots && python tests/ui/test_ui.py http://127.0.0.1:18080 shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ui-screenshots
           path: shots/
+  scripts:
+    name: Workflow lint and script tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint (workflow syntax, expressions, shellcheck on run blocks)
+        run: docker run --rm -v "$PWD":/repo -w /repo docker.io/rhysd/actionlint:latest -color
+      - name: GitHub setup script, against a fake gh
+        run: tests/setup-signing-github.test.sh
+      - name: Release workflow shell steps, against a mock gh
+        run: |
+          pip install pyyaml
+          python3 tests/release_workflow_test.py

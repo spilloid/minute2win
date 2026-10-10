@@ -1,0 +1,60 @@
+name: signing check
+# Proves the Azure Artifact Signing wiring end to end WITHOUT publishing anything: builds the Windows server, signs it, verifies
+# the signature and timestamp, and discards the result. Run it by hand before the first signed release and after any change to
+# the signing setup. Needs the same 'release' environment as release.yml.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
+          cache: false
+      - name: Build an unsigned executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force check | Out-Null
+          Push-Location server; $env:CGO_ENABLED = '0'; go build -trimpath -ldflags='-s -w' -o ../check/minute2win-server.exe .; Pop-Location
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign it
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\check
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: false
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
+      - name: Verify
+        shell: pwsh
+        env:
+          SIGNING_EXPECTED_SUBJECT: ${{ vars.SIGNING_EXPECTED_SUBJECT }}
+        run: ./scripts/verify-signature.ps1 -Files check/minute2win-server.exe -ExpectedSubject $env:SIGNING_EXPECTED_SUBJECT

@@ -17,6 +17,10 @@ Branding and goal: an NVMe machine on 1 GbE from network boot to flashed Windows
 - kvm-it stays unaware of how Windows is installed; minute2win stays unaware of what booted it. kvm-it's harness is
   reused by path (`tests/vm/deploy-vm.sh`), not copied.
 
+## Go
+
+Stable latest, always (operator preference): CI and releases build with `go-version: stable`, and `server/go.mod`'s `go` directive tracks the current stable language version. Standard library first; a third-party dependency needs a reason, because the operator prefers rolling our own when it isn't too complex and avoiding transitive dependencies.
+
 ## Checks
 
 | Command | What |
