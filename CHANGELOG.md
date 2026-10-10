@@ -12,6 +12,15 @@
   that no GitHub token has to be on the machine that holds the `az` login).
 - CI cross-compiles for Windows and arm64 on every PR and runs the Go tests with the race detector.
 
+- Built-in PXE front end for `minute2win-server`, opt-in with `-pxe` (off by default): a proxyDHCP responder (UDP 67 and 4011) and a
+  read-only TFTP server (UDP 69, `-pxe-dir`), so the deploy server needs no dnsmasq. It never offers an address or lease options, and
+  it answers only armed MACs: unarmed machines get silence and boot their disk, and once `/boot` consumes the arm the machine gets no
+  more offers. Boot file by client architecture (`-pxe-file-x64`, `-pxe-file-bios`, `-pxe-file-arm64`); a client that is already iPXE
+  gets the `/boot/<mac>` URL instead of iPXE again. Clear startup errors for privileged ports and for a port another DHCP server holds.
+  Standard library only (no new dependencies). No iPXE binary is included: point `-pxe-dir` at your own.
+  Status: unit-tested and run once in a QEMU VM on a simulated LAN (BIOS iPXE stage, `tests/pxe/pxe-lan.sh`); never run on real PXE
+  firmware, UEFI firmware PXE + TFTP, or Secure Boot.
+
 ## [0.1.0] - 2026-10-10 (unit-tested, never booted)
 
 First version. It grew from the Windows 11 network-install scripts staged in R2 on 2026-10-05 (`install.ps1`,

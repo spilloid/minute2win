@@ -93,3 +93,26 @@ Every finding is reproduced against source before it is accepted (corporate-stra
   and runs in CI.
 - Round 3 (astra, vendored codex 0.162.1): finding #3 **CLOSED**, no new High/Critical, **SIGN-OFF: yes.** The Azure setup and the signing-check
   workflow still have not been run (kubert's `az` login must be refreshed), so the signed-release path is reviewed and fails closed, but unproven.
+
+## 2026-10-10 — built-in PXE (`-pxe`), unreleased
+
+- Asked: an opt-in proxyDHCP + read-only TFTP front end in minute2win-server so a deploy needs no dnsmasq, answering ARMED MACs only,
+  never offering an address, no embedded iPXE. Then (operator decision mid-task): no third-party dependencies, standard library only.
+- Built: `server/dhcp.go` (BOOTP/DHCP parse and proxy reply), `server/pxe.go` (policy, listeners, reply routing, rate-limited
+  logging, bind-error advice), `server/tftp.go` (RRQ only, octet, blksize/tsize/timeout via OACK, bounded retransmit, one goroutine
+  and ephemeral port per transfer, directory confinement), `server/sock_*.go` (SO_REUSEADDR/REUSEPORT on 67; Linux IP_PKTINFO to learn
+  and answer on the receiving interface), flags in `main.go`, and `tests/pxe/pxe-lan.sh`.
+- Decisions not in the brief: REQUESTs on UDP 67 are answered only when option 54 names us (others belong to the real DHCP server);
+  option 66 (TFTP server) is added for TFTP file names as a hint for firmware that prefers it; option 54 is sent (needed for the 4011
+  step); replies are padded to 300 bytes; a degraded server offers nothing (it would not deploy anyway); non-Linux hosts with several
+  IPv4 addresses must set `-pxe-ip`; TFTP blksize is capped at 1468 and only octet mode is served; bind failures stop startup.
+- Verified by running: `gofmt -l`, `go vet`, `go test -count=1 -race` (decision table per arch/armed/unarmed/expired/consumed/degraded,
+  reply contents and destinations, garbage and truncated packets for both parsers, loopback end to end: arm, DISCOVER, 4011 ACK, TFTP
+  byte-exact, iPXE URL, `/boot`, ignored afterwards; TFTP refusals, exact-512 and multi-block files, retry bound); 20 s and 10 s fuzz runs
+  of the two parsers; cross builds for windows/amd64, linux/arm64, darwin. Mutation spot checks: ten deliberate bugs (armed check,
+  expiry, iPXE detection, yiaddr, option 43, path confinement, end-of-transfer) each made a test fail. `tests/pxe/pxe-lan.sh`
+  (MODE=bios) passed: QEMU's iPXE ROM on a bridge, with dnsmasq as a separate plain DHCP server, got the `/boot` URL advertising the
+  bridge address on a two-interface host, the arm was consumed, and the second boot was ignored.
+- Not verified: any real PXE firmware; UEFI firmware PXE and our TFTP serving a real client (OVMF in the harness never attempted a
+  network boot); BIOS firmware PXE with `undionly.kpxe`; the Secure Boot shim chain; anything on Windows beyond compiling. No astra
+  review has been run on this change yet (STD-001 still owed).
