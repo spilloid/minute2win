@@ -92,27 +92,47 @@ func lanURLs(bound net.Addr) []string {
 	return out
 }
 
-// pxeHTTPTarget derives what the iPXE boot URL advertises from the HTTP listener as bound: its real port, and its address when it
-// is bound to one specific IPv4 address (HTTP answers nowhere else). override (-pxe-ip) wins for the address. nil = per interface.
-func pxeHTTPTarget(bound net.Addr, override net.IP) (int, net.IP, error) {
+// pxeHTTPTarget decides what the iPXE boot URL advertises, from the HTTP listener as actually bound, and checks that it is reachable
+// there. The port is the bound one (so -listen :0 works). The address:
+//   - HTTP bound to one IPv4 address: that address; -pxe-ip, if given, must be the same (HTTP answers nowhere else).
+//   - HTTP bound to loopback, or to a specific IPv6 address (including [::1]): refused, PXE clients (IPv4) can't reach it.
+//   - HTTP bound to all addresses (0.0.0.0 or [::], dual-stack on Linux, Windows, macOS and FreeBSD; not on OpenBSD, which the
+//     built-in PXE does not support): -pxe-ip if given (a warning if it is not one of local), otherwise nil = per interface.
+//
+// -pxe-ip itself must be a usable IPv4 unicast address.
+func pxeHTTPTarget(bound net.Addr, override net.IP, local []net.IP) (port int, adv net.IP, warning string, err error) {
 	tcp, ok := bound.(*net.TCPAddr)
 	if !ok || tcp.Port == 0 {
-		return 0, nil, fmt.Errorf("pxe: cannot tell the HTTP port from %v", bound)
+		return 0, nil, "", fmt.Errorf("pxe: cannot tell the HTTP port from %v", bound)
 	}
 	if override != nil {
-		return tcp.Port, override.To4(), nil
+		o4 := override.To4()
+		if o4 == nil || o4.IsLoopback() || o4.IsUnspecified() || o4.Equal(net.IPv4bcast) || o4.IsMulticast() {
+			return 0, nil, "", fmt.Errorf("pxe: -pxe-ip %s is not an IPv4 address PXE clients can reach", override)
+		}
+		override = o4
 	}
-	if tcp.IP == nil || tcp.IP.IsUnspecified() {
-		return tcp.Port, nil, nil
+	if tcp.IP != nil && !tcp.IP.IsUnspecified() {
+		ip4 := tcp.IP.To4()
+		switch {
+		case ip4 == nil:
+			return 0, nil, "", fmt.Errorf("pxe: HTTP is bound to %s, an IPv6 address PXE (IPv4) clients cannot use; bind -listen to an IPv4 address or to all addresses", tcp.IP)
+		case ip4.IsLoopback():
+			return 0, nil, "", fmt.Errorf("pxe: HTTP is bound to loopback %s, which PXE clients cannot reach; bind -listen to a LAN address or to all addresses", ip4)
+		case override != nil && !override.Equal(ip4):
+			return 0, nil, "", fmt.Errorf("pxe: -pxe-ip %s, but HTTP only listens on %s, so the boot URL would not work; make them the same or bind -listen to all addresses", override, ip4)
+		}
+		return tcp.Port, ip4, "", nil
 	}
-	ip4 := tcp.IP.To4()
-	switch {
-	case ip4 == nil:
-		return 0, nil, fmt.Errorf("pxe: HTTP is bound to %s, which PXE (IPv4) clients cannot use; bind -listen to an IPv4 address or all addresses, or set -pxe-ip", tcp.IP)
-	case ip4.IsLoopback():
-		return 0, nil, fmt.Errorf("pxe: HTTP is bound to loopback %s, which PXE clients cannot reach; bind -listen to a LAN address or all addresses", ip4)
+	if override != nil {
+		for _, l := range local {
+			if l.Equal(override) {
+				return tcp.Port, override, "", nil
+			}
+		}
+		return tcp.Port, override, fmt.Sprintf("pxe: warning: -pxe-ip %s is not an address of this host; clients will only reach the boot URL if it is forwarded here", override), nil
 	}
-	return tcp.Port, ip4, nil
+	return tcp.Port, nil, "", nil
 }
 
 func main() {
@@ -164,8 +184,13 @@ func main() {
 		}
 		// The HTTP listener is already bound, so the boot URL uses the port it really got (-listen :0 included) and, when it is
 		// bound to one address, that address (the only one the URL can work on).
-		if cfg.HTTPPort, cfg.AdvertiseIP, err = pxeHTTPTarget(ln.Addr(), override); err != nil {
+		_, local := localIPv4s()
+		var warning string
+		if cfg.HTTPPort, cfg.AdvertiseIP, warning, err = pxeHTTPTarget(ln.Addr(), override, local); err != nil {
 			log.Fatal(err)
+		}
+		if warning != "" {
+			log.Print(warning)
 		}
 		if _, err := s.StartPXE(cfg); err != nil {
 			log.Fatal(err)
