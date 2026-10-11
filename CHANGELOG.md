@@ -9,6 +9,7 @@
 - Validate Windows-hosted UEFI PXE through real OVMF firmware, automatic WinPE imaging, Windows disk boot, normal OOBE and automatic first-boot bootstrap on a disposable Proxmox VM. Record measured timing and remaining hardware/Secure Boot limits.
 - Run server tests natively on Windows in CI, with a regression covering repeated state replacement under a Unicode path, preserved deployment history and dropped arms on restart.
 
+- Linux x86_64 AppImage (`minute2win-server-X-x86_64.AppImage`): the server and `manifests/` in one runnable file, built in CI on every PR (artifact `appimage`, smoke-tested) and attached to each release. Built by `tools/appimage.sh` with no appimagetool; the one prebuilt piece, the AppImage type 2 runtime, is pinned by SHA-256. Like the Linux archives it is not code-signed (covered by `SHA256SUMS`). Smoke-tested extracted (no FUSE here); not yet run on a desktop with FUSE. x86_64 only.
 - Public documentation: focused README, setup and boot-asset guides, server/manifest/API references, troubleshooting, and explicit verification status.
 - GitHub Pages documentation workflow with a responsive light/dark layout; PRs build without deployment privileges.
 - Public contribution/security guidance and release preparation notes for tag protection and operator-owned image hosting.

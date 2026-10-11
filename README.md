@@ -22,6 +22,8 @@ Minute2Win is a self-hosted Windows deployment toolkit: a small Go server with a
 
 Download and extract the server archive for your platform from [Releases](https://github.com/spilloid/minute2win/releases). Verify `SHA256SUMS` first. Run from the extracted folder containing the binary and `manifests/`.
 
+On Linux x86_64 you can instead download `minute2win-server-X-x86_64.AppImage`, `chmod +x` it and run it with the same flags (`-data` defaults to `./data` in the directory you start it from). It is not code-signed; rely on `SHA256SUMS`.
+
 Linux:
 
 ```bash
