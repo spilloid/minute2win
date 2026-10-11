@@ -16,6 +16,10 @@ Supply your own licensed Windows image, WinPE built with the Windows ADK and Win
 
 Extract a [server release](https://github.com/spilloid/minute2win/releases) and verify its checksums. Set `M2W_TOKEN`, then start with `-listen 127.0.0.1:8080`. Open the console at <http://localhost:8080>. Windows opens the browser by default; Linux users open it themselves.
 
+![The console on a phone-width screen in dark mode, with two deployments on the board.](assets/screenshots/phone-dark.png)
+
+*Demo data from the automated UI test: the MAC, the QEMU machine and the 58.1 s lap times are fixtures, not a measured deployment.* The page works at phone width and follows the light or dark setting.
+
 Do not arm a real target during a preview. Binding to loopback prevents remote targets reaching the console, but is not a deployment simulation.
 
 ## 3. Create your deployment profile

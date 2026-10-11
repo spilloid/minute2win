@@ -30,3 +30,4 @@ footer { margin-top: 3rem; border-top: 1px solid var(--line); padding: 1rem 0; c
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 1rem; top: .4rem; background: var(--panel); padding: .5rem; }
 @media (max-width: 760px) { .tagline { display: none; } header { gap: 1rem; padding: 1rem; } .shell { display: block; padding: 1rem; } nav { margin-bottom: 1.5rem; display: flex; flex-wrap: wrap; gap: .25rem; } nav .nav-title { width: 100%; margin-bottom: 0; } nav a { font-size: .85rem; } }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; }
