@@ -6,6 +6,7 @@
 
 - Fix Windows state persistence: directory sync returned Access is denied, causing the server to become degraded and reject every arm. The Windows replacement now uses MoveFileExW with replacement and write-through flags after flushing the temporary file; Unix keeps rename plus directory sync. Arms still never survive a restart.
 - Name the injected manifest explicitly in iPXE for UEFI wimboot. The loader now refuses to run without injection unless a static profile is explicitly selected with `-Manifest`, preventing a missing armed profile from silently choosing the default.
+- Validate Windows-hosted UEFI PXE through real OVMF firmware, automatic WinPE imaging, Windows disk boot, normal OOBE and automatic first-boot bootstrap on a disposable Proxmox VM. Record measured timing and remaining hardware/Secure Boot limits.
 - Run server tests natively on Windows in CI, with a regression covering repeated state replacement under a Unicode path, preserved deployment history and dropped arms on restart.
 
 - Public documentation: focused README, setup and boot-asset guides, server/manifest/API references, troubleshooting, and explicit verification status.

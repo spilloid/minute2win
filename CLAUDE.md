@@ -41,7 +41,10 @@ STD-008 (UI capture and overflow).
 
 ## Things to re-verify before trusting them
 
-- 2026-10-11: Windows native server tests found directory fsync made all arms fail. The 0.1.2 fix uses Windows write-through replacement; native Windows tests and authenticated API smoke checks pass. See docs/validation/2026-10-11-windows-server.md. Long-lived lab execution and VM deployment are still pending; do not claim a Windows installation has booted.
+- 2026-10-11: Windows native server tests found directory fsync made all arms fail. The 0.1.2 fix uses Windows write-through replacement; native Windows tests and authenticated API smoke checks pass. See docs/validation/2026-10-11-windows-server.md. Subsequent Windows-hosted PXE, VM imaging and installed-OS boot evidence is recorded below; do not extend it to physical hardware or Secure Boot.
+
+- 2026-10-11: **0.1.2 release candidate** fixes native Windows state replacement and UEFI manifest naming, with a fail-closed loader when injection is absent. Native Windows checks, Linux race tests, PowerShell 47/47 and both GitHub workflows pass. Draft PR #6 contains public documentation and a Pages workflow; release/tag protection and independent review remain pending.
+- 2026-10-11: **Windows-hosted UEFI PXE and imaging now observed.** A disposable Proxmox OVMF/Q35 VM booted through proxy DHCP, shim/iPXE TFTP, wimboot and rebuilt auto-running WinPE. The default profile imaged Windows 11 Pro 26300.9457, reclaimed staging, booted its Windows disk and reached normal OOBE. Logs prove automatic SetupComplete/bootstrap success. An unarmed reboot was ignored. The initial image checksum failure remains unexplained; independent source hashes and a fresh VM transfer matched the pin. Optional-account validation is underway. Secure Boot, physical firmware, port 4011 and OEM-key behavior remain unverified. See docs/validation/2026-10-11-windows-server.md; older notes below describe the earlier baseline.
 
 - 2026-10-10: **Signing is set up and proven** (Azure Artifact Signing over OIDC; the manual `signing check` signed and verified a throwaway
   exe as `CN=Joseph Spillers`, timestamped). The Azure half ran in Azure Cloud Shell because kubert's `az` login was blocked by security

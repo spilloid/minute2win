@@ -6,7 +6,7 @@ Minute2Win is a self-hosted Windows deployment toolkit: a small Go server with a
 
 [Download releases](https://github.com/spilloid/minute2win/releases) · [Getting started](docs/GETTING_STARTED.md) · [Documentation](docs/index.md) · [Known issues](docs/STATUS.md)
 
-**Current code version: 0.1.2. Early release.** Server logic and deployment helpers are unit-tested; the web console is tested with Playwright. The PXE front end has been observed in a QEMU BIOS iPXE simulation. **A Windows installation has not yet been run end to end.** The name describes the one-minute goal, not a measured performance claim.
+**Current code version: 0.1.2. Early release.** Server logic and deployment helpers are unit-tested; the web console is tested with Playwright. A disposable Proxmox x64 UEFI VM has booted through Windows-hosted PXE, completed imaging and booted its installed Windows disk. It reached normal OOBE, and logs confirm automatic first-boot bootstrap success. Physical hardware and optional account setup remain unverified. The name describes the one-minute goal, not a measured performance claim.
 
 > **Deployment erases the selected internal disk without a confirmation prompt.** Arming a machine is authorization to reimage it. Start with a disposable VM, use your own boot assets and Windows image, and set `M2W_TOKEN` before allowing network access.
 
@@ -65,6 +65,6 @@ The engine runs only in WinPE. It chooses the lowest-numbered eligible internal 
 
 ## Scope
 
-Minute2Win is for operators who have already decided to reimage a machine. It is not yet a validated production deployment system. Windows images, WinPE, wimboot and iPXE binaries are not included. Domain/Entra/hybrid joins are not implemented. Secure Boot and real firmware PXE remain unverified. See [Status](docs/STATUS.md) before a deployment.
+Minute2Win is for operators who have already decided to reimage a machine. It is not yet a validated production deployment system. Windows images, WinPE, wimboot and iPXE binaries are not included. Domain/Entra/hybrid joins are not implemented. Secure Boot and physical-machine PXE remain unverified. See [Status](docs/STATUS.md) before a deployment.
 
 The project uses the [MIT license](LICENSE); bundled third-party notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Windows licensing and the licenses of boot components you supply remain your responsibility.

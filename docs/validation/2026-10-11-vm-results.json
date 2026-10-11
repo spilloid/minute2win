@@ -1,0 +1,84 @@
+{
+  "codeVersion": "0.1.2",
+  "environment": {
+    "host": "Windows 11 deployment server (kubert)",
+    "target": "Disposable Proxmox VM 100",
+    "firmware": "OVMF x64 UEFI, Secure Boot disabled",
+    "machine": "Q35",
+    "memoryMB": 4096,
+    "cores": 2,
+    "diskGiB": 80,
+    "diskBus": "SATA",
+    "nic": "e1000e",
+    "mac": "02:00:00:00:02:11"
+  },
+  "defaultProfile": {
+    "installedOS": {
+      "Caption": "Microsoft Windows 11 Pro",
+      "Version": "10.0.26300"
+    },
+    "observedBuild": "26300.9457",
+    "oobeCountryScreenReached": true,
+    "firstbootMarkerPresent": true,
+    "firstbootResult": {
+      "started": "2026-10-11T06:17:08.7069201-07:00",
+      "steps": [
+        "join: none"
+      ],
+      "os": "Microsoft Windows 11 Pro 10.0.26300",
+      "computerName": "WIN-7HVUGFI2NDH",
+      "status": "ok",
+      "finished": "2026-10-11T06:17:09.7799532-07:00"
+    },
+    "timingSeconds": {
+      "ready": 17.3,
+      "partitioned": 23.9,
+      "downloaded": 176.9,
+      "applied": 353.1,
+      "done": 359.4,
+      "sinceWinPEBoot": 375.3
+    },
+    "finalPartitions": [
+      {
+        "DiskNumber": 0,
+        "PartitionNumber": 1,
+        "Type": "System",
+        "Size": 272629760
+      },
+      {
+        "DiskNumber": 0,
+        "PartitionNumber": 2,
+        "Type": "Reserved",
+        "Size": 16777216
+      },
+      {
+        "DiskNumber": 0,
+        "PartitionNumber": 3,
+        "Type": "Basic",
+        "Size": 85608873472
+      }
+    ],
+    "unarmedPxeIgnoredAfterReboot": true
+  },
+  "limits": [
+    "One VM and image build only",
+    "User setup was not completed for the default profile",
+    "No Secure Boot or OEM firmware-key test",
+    "No port 4011 request in firmware capture",
+    "Initial failed image checksum remains unexplained; hash pin was retained"
+  ],
+  "optionalAccountProfile": {
+    "profile": "lab-oobe (isolated lab file, not shipped)",
+    "adminUser": "m2wlab",
+    "imageVerified": true,
+    "engineStatus": "done",
+    "timingSeconds": {
+      "ready": 14.4,
+      "partitioned": 21,
+      "downloaded": 265.5,
+      "applied": 452.9,
+      "done": 456.6
+    },
+    "installedOSChecks": "pending"
+  }
+}

@@ -34,3 +34,5 @@ and does not reboot.
 Profiles are the filename without `.json`. The server offers only JSON files directly inside its manifest directory. Templates in `manifests/examples/` are not offered. Copy a template to your own manifest directory and replace its image URL and SHA-256 before use.
 
 The shipped `win11-pro` profile points to a maintainer-controlled host with restricted access. It is a reference profile, not a public Windows image download service. Supply your own licensed image and verify its hash. ARM64 PXE file selection does not establish ARM64 Windows deployment support: the supplied WinPE builder builds amd64.
+
+Save server profile JSON as UTF-8 **without a byte-order mark**. Windows PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM; use `[IO.File]::WriteAllText($path, $json, (New-Object Text.UTF8Encoding($false)))` or an editor configured for UTF-8 without BOM. A malformed profile may be listed and armed, but manifest delivery fails and consumes the arm; correct the file before deliberately re-arming.

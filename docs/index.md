@@ -6,7 +6,7 @@ title: Minute2Win documentation
 
 A self-hosted console and boot toolkit for zero-touch Windows installation.
 
-**Start here:** [Getting started](GETTING_STARTED.md) takes you from an extracted server release to an operator-owned deployment configuration. [Status](STATUS.md) explains what has been verified and what still needs a Windows boot test.
+**Start here:** [Getting started](GETTING_STARTED.md) takes you from an extracted server release to an operator-owned deployment configuration. [Status](STATUS.md) explains what has been verified and what still needs hardware or setup validation.
 
 > Deployment erases the selected disk. Use a disposable VM for initial validation. The one-minute deployment goal has not been measured.
 
