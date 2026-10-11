@@ -19,7 +19,7 @@ Windows MoveFileEx behavior is documented by [Microsoft](https://learn.microsoft
 
 ## Firmware and WinPE run
 
-Test target: newly created VM 100 on the Proxmox host at 192.168.68.3, 4 GB RAM, two host CPU cores, an 80 GB SATA disk, e1000e NIC with synthetic MAC 02:00:00:00:02:11, OVMF/Q35, Secure Boot disabled. Existing host disks and other VMs were not modified. Kubert (192.168.68.227) served the isolated lab on TCP 18080/18081 and standard PXE/TFTP UDP ports; its existing Windows disk was not reimaged.
+Test target: newly created VM 100 on the Proxmox host at [private lab address], 4 GB RAM, two host CPU cores, an 80 GB SATA disk, e1000e NIC with synthetic MAC [synthetic test MAC], OVMF/Q35, Secure Boot disabled. Existing host disks and other VMs were not modified. the Windows lab host ([private lab address]) served the isolated lab on TCP 18080/18081 and standard PXE/TFTP UDP ports; its existing Windows disk was not reimaged.
 
 - Unarmed firmware DHCP capture: four client discoveries and four ordinary router offers, zero lab proxy offers, zero capture drops. This is a real UEFI firmware check, distinct from the earlier simulated BIOS iPXE LAN test.
 - Armed firmware capture/logs: x64 arch 7 proxy offer, TFTP delivery of BOOTX64.EFI and shim's ipxe.efi, then an iPXE HTTP boot-script offer. Capture had zero drops. No port 4011 request occurred, so that path remains unverified. Windows accepted lower-case ipxe.efi for an upper-case staged filename; case-sensitive hosts still require matching filenames. Secure Boot was disabled, so the signed-chain behavior was not verified.
@@ -34,7 +34,7 @@ The iPXE project documents [explicit image names](https://ipxe.org/cmd/imgfetch)
 
 ## Test environment limits
 
-Lab services ran only within a bounded live SSH session, with process and temporary firewall cleanup in finally. No persistent scheduled task was created. Installed Windows boot, normal OOBE and automatic bootstrap were observed on the default profile; the optional-account test is still underway; Secure Boot, OEM-key behavior, physical hardware and concurrent socket pressure remain unverified.
+Lab services ran only within a bounded live SSH session, with process and temporary firewall cleanup in finally. No persistent scheduled task was created. Installed Windows boot, normal OOBE and automatic bootstrap were observed on the default profile; optional-account automatic desktop logon, admin membership, main-answer-file deletion and bootstrap success were also observed; Secure Boot, OEM-key behavior, physical hardware and concurrent socket pressure remain unverified.
 
 Installed-OS evidence also confirms three final GPT partitions: 272,629,760-byte system, 16,777,216-byte reserved and 85,608,873,472-byte Windows; the staging partition was removed. timing.json records sinceWinPEBoot 375.3 s. Plain deployment transcript, hardware inventory, timing, firstboot log and firstboot result were extracted to the lab evidence directory.
 
@@ -42,4 +42,10 @@ Machine-readable observed results: [VM evidence](2026-10-11-vm-results.json).
 
 ## Optional-account profile
 
-A separate isolated lab profile selected oobe.adminUser=m2wlab, leaving the image/hash unchanged. The first staged file had a UTF-8 BOM from Windows PowerShell 5.1 Set-Content; the server rejected manifest delivery before WinPE installation and firmware returned to the previous Windows disk. It was rewritten as UTF-8 without BOM and deliberately re-armed. The corrected run completed imaging with ready 14.4 s, partitioned 21.0 s, downloaded 265.5 s, applied 452.9 s and done 456.6 s. Installed-OS account, cleanup and next-logon checks remain pending.
+A separate isolated lab profile selected oobe.adminUser=lab-admin, leaving the image/hash unchanged. The first staged file had a UTF-8 BOM from Windows PowerShell 5.1 Set-Content; the server rejected manifest delivery before WinPE installation and firmware returned to the previous Windows disk. It was rewritten as UTF-8 without BOM and deliberately re-armed. The corrected run completed imaging with ready 14.4 s, partitioned 21.0 s, downloaded 265.5 s, applied 452.9 s and done 456.6 s. Windows automatically logged on to the desktop as lab-admin, which was present in the local Administrators group. Main Panther\unattend.xml was absent, and firstboot.done plus firstboot-result.json status ok confirmed bootstrap success. Other XML files remained in Panther\UnattendGC; their names/content were not inspected, so complete cached-XML cleanup is unverified. Virtual-console unlock and fresh-logon attempts showed incorrect-password or lock-screen outcomes, without a verified password-change prompt. The shipped public baseline was visually verified in the fresh-logon field. The cause is undiagnosed and tracked with cached-XML inspection in [#8](https://github.com/spilloid/minute2win/issues/8). A 30-second hypervisor reboot request timed out; the disposable guest was power-cycled for that fresh-logon test.
+
+## Cleanup and release state
+
+Verified on the Windows lab host after the bounded sessions ended: zero lab server/collector processes, zero temporary lab firewall rules, zero Minute2Win scheduled tasks and no mounted DISM images. VM 100 was stopped and retains default-profile-oobe and optional-profile-signin snapshots for follow-up. Lab source/build artifacts and logs were retained for review. Existing VMs and host OS disks were not reimaged.
+
+PR #6 remains a release candidate. Independent adversarial review and public tag protection remain pending. No 0.1.2 tag, signed release assets or published release were created; authenticated release-publishing access was unavailable. Documentation builds on PRs; live Pages deployment is pending merge/settings.

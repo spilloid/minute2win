@@ -1,7 +1,7 @@
 {
   "codeVersion": "0.1.2",
   "environment": {
-    "host": "Windows 11 deployment server (kubert)",
+    "host": "Windows 11 deployment server (the Windows lab host)",
     "target": "Disposable Proxmox VM 100",
     "firmware": "OVMF x64 UEFI, Secure Boot disabled",
     "machine": "Q35",
@@ -10,7 +10,7 @@
     "diskGiB": 80,
     "diskBus": "SATA",
     "nic": "e1000e",
-    "mac": "02:00:00:00:02:11"
+    "mac": "[synthetic test MAC]"
   },
   "defaultProfile": {
     "installedOS": {
@@ -26,7 +26,7 @@
         "join: none"
       ],
       "os": "Microsoft Windows 11 Pro 10.0.26300",
-      "computerName": "WIN-7HVUGFI2NDH",
+      "computerName": "LAB-VM",
       "status": "ok",
       "finished": "2026-10-11T06:17:09.7799532-07:00"
     },
@@ -69,7 +69,7 @@
   ],
   "optionalAccountProfile": {
     "profile": "lab-oobe (isolated lab file, not shipped)",
-    "adminUser": "m2wlab",
+    "adminUser": "lab-admin",
     "imageVerified": true,
     "engineStatus": "done",
     "timingSeconds": {
@@ -77,8 +77,65 @@
       "partitioned": 21,
       "downloaded": 265.5,
       "applied": 452.9,
-      "done": 456.6
+      "done": 456.6,
+      "sinceWinPEBoot": 472.6
     },
-    "installedOSChecks": "pending"
+    "installedOS": {
+      "Caption": "Microsoft Windows 11 Pro",
+      "Version": "10.0.26300"
+    },
+    "automaticDesktopLogonObserved": true,
+    "loggedInUser": "lab-admin",
+    "localAdministrators": [
+      "LAB-VM\\Administrator",
+      "LAB-VM\\lab-admin"
+    ],
+    "mainAnswerFilePresent": false,
+    "setupLogDirectoryContainsXml": true,
+    "firstbootMarkerPresent": true,
+    "firstbootResult": {
+      "started": "2026-10-11T06:43:58.6773374-07:00",
+      "steps": [
+        "join: none"
+      ],
+      "os": "Microsoft Windows 11 Pro 10.0.26300",
+      "computerName": "LAB-VM",
+      "status": "ok",
+      "finished": "2026-10-11T06:43:59.7603903-07:00"
+    },
+    "finalPartitions": [
+      {
+        "DiskNumber": 0,
+        "PartitionNumber": 1,
+        "Type": "System",
+        "Size": 272629760
+      },
+      {
+        "DiskNumber": 0,
+        "PartitionNumber": 2,
+        "Type": "Reserved",
+        "Size": 16777216
+      },
+      {
+        "DiskNumber": 0,
+        "PartitionNumber": 3,
+        "Type": "Basic",
+        "Size": 85608873472
+      }
+    ],
+    "nextLogonPasswordChange": "Unverified: virtual-console unlock/fresh-logon attempts showed incorrect-password or lock-screen outcomes; no password-change prompt observed",
+    "setupLogXmlCleanup": "remaining XML filenames and contents not inspected",
+    "followUpIssue": "https://github.com/spilloid/minute2win/issues/8"
+  },
+  "cleanup": {
+    "labServerAndCollectorProcessCount": 0,
+    "temporaryFirewallRuleCount": 0,
+    "minute2winScheduledTaskCount": 0,
+    "mountedWinPEImageCount": 0,
+    "vmStatus": "stopped",
+    "retainedSnapshots": [
+      "default-profile-oobe",
+      "optional-profile-signin"
+    ]
   }
 }
