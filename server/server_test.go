@@ -81,7 +81,7 @@ func TestOneArmIsOneWipe(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52-54-00-AB-CD-EF") // dashes and capitals normalise
 	_, first := f.do(t, "GET", "/boot/52:54:00:ab:cd:ef", "", "")
-	for _, want := range []string{"kernel https://img.example/w11/wimboot", "initrd " + f.ts.URL + "/manifest/52:54:00:ab:cd:ef manifest.json", "initrd https://img.example/w11/boot.wim boot.wim", "boot\n"} {
+	for _, want := range []string{"kernel https://img.example/w11/wimboot", "initrd --name manifest.json " + f.ts.URL + "/manifest/52:54:00:ab:cd:ef manifest.json", "initrd https://img.example/w11/boot.wim boot.wim", "boot\n"} {
 		if !strings.Contains(first, want) {
 			t.Fatalf("armed boot script missing %q:\n%s", want, first)
 		}

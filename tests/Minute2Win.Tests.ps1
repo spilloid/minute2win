@@ -192,3 +192,10 @@ Describe 'Get-M2WSetupCompleteLine' {
         $l | Should -Match 'Logs\\minute2win\\setupcomplete\.log'
     }
 }
+
+Describe 'boot loader fails closed without the selected manifest' {
+    It 'stops before downloading or launching the installer when injection is absent' {
+        Mock Test-Path { $false }
+        { & (Join-Path $repo 'boot/install.ps1') -Base 'http://127.0.0.1:1' } | Should -Throw '*Boot manifest was not injected*'
+    }
+}

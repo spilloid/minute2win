@@ -12,7 +12,7 @@ isset ${m2w-manifest} || set m2w-manifest win11-pro
 kernel ${base}/wimboot
 initrd ${base}/BCD BCD
 initrd ${base}/boot.sdi boot.sdi
-initrd ${base}/minute2win/manifests/${m2w-manifest}.json manifest.json
+initrd --name manifest.json ${base}/minute2win/manifests/${m2w-manifest}.json manifest.json
 initrd ${base}/boot.wim boot.wim
 
 boot

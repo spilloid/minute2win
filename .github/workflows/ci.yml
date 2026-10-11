@@ -29,6 +29,21 @@ jobs:
           go test -race ./...
           # the release builds these; catch a platform break in the PR, not at the tag
           for t in windows/amd64 linux/arm64 linux/amd64; do GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null .; done
+  windows:
+    name: Windows server runtime tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Vet on Windows
+        working-directory: server
+        run: go vet ./...
+      - name: Test on Windows
+        working-directory: server
+        run: go test ./...
   ui:
     runs-on: ubuntu-latest
     steps:

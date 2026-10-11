@@ -67,10 +67,10 @@ Every finding is reproduced against source before it is accepted (corporate-stra
 
 ## 2026-10-10 — Windows build and signed-release pipeline (PR #3)
 
-- Asked: a Windows client like PartnerCenterBridge's; strong CI/CD; signing set up through kubert.
-- Found on inspection: signing here is Azure Artifact Signing over OIDC (D-0047), not keys on kubert; STD-006 forbids keys in CI. kubert
+- Asked: a Windows client like PartnerCenterBridge's; strong CI/CD; signing set up through the Windows lab host.
+- Found on inspection: signing here is Azure Artifact Signing over OIDC (D-0047), not keys on the Windows lab host; STD-006 forbids keys in CI. the Windows lab host
   holds an `az` login (its cached token has expired, so the Azure half is **not run yet**) but its `gh` token is invalid. So the
-  setup script was split into an Azure half and a GitHub half and no GitHub token is copied to kubert.
+  setup script was split into an Azure half and a GitHub half and no GitHub token is copied to the Windows lab host.
 - Verified by running: `go vet`, `go test -race`, Windows/arm64 cross-builds, CI green, actionlint clean, a mocked-`gh` test of
   the GitHub setup script (which fails on the pre-fix script, as it should), the asset allowlist step run against good and bad sets.
 - Adversarial review round 1 (astra, 65k tokens), 6 findings, all confirmed:
@@ -92,7 +92,7 @@ Every finding is reproduced against source before it is accepted (corporate-stra
   assignment; `tests/release_workflow_test.py` now executes the real allowlist and upload steps (extracted from the YAML) against a mock `gh`
   and runs in CI.
 - Round 3 (astra, vendored codex 0.162.1): finding #3 **CLOSED**, no new High/Critical, **SIGN-OFF: yes.** The Azure setup and the signing-check
-  workflow still have not been run (kubert's `az` login must be refreshed), so the signed-release path is reviewed and fails closed, but unproven.
+  workflow still have not been run (the Windows lab host's `az` login must be refreshed), so the signed-release path is reviewed and fails closed, but unproven.
 
 ## 2026-10-10 — built-in PXE (`-pxe`), unreleased
 
@@ -178,3 +178,23 @@ Round 4 (astra): finding C **CLOSED**, no regression, **SIGN-OFF: yes** for the 
 and noted rather than fixed: the "burn the ordinary key" step in the recheck test runs after the noise budget is already exhausted so it does not itself stamp that key (the separate
 `revoked:` key is covered by source inspection), and the TFTP test checks the backoff constant, not the actual sleep or listener dispatch. Still UNVERIFIED: any real PXE firmware (BIOS and UEFI), TFTP to
 a real client, the Secure Boot shim chain, and anything PXE on Windows beyond compiling; the write deadlines and log budgets were tested with fakes and a simulated clock, not under real socket pressure.
+
+
+## 2026-10-11 — Public documentation preparation
+
+- Rewrote the README around the product, console preview and operator-owned setup. Split reference details into public setup, boot assets, manifest, server, API, troubleshooting and status guides. Added contributor/security guidance and public release preparation. Retained the historical review log in the repository; excluded it from Pages.
+- Added a GitHub Pages Actions workflow and responsive Jekyll layout with light/dark styles. PRs build only; deployment is restricted to main with Pages permissions scoped to the deploy job. No application behavior or release version changed.
+- Verified: actionlint passed; the exact ghcr.io/actions/jekyll-build-pages:v1.0.13 image built all nine pages; source and generated local links/assets checked; Playwright exercised all nine pages at desktop and phone widths in light/dark modes, checking active navigation, one heading and no document-wide horizontal overflow. Desktop/light and phone/dark screenshots were inspected. git diff --check passed.
+- No independent adversarial review performed for this documentation change. No full Git history disclosure audit, live Pages deployment, repository visibility change or Windows deployment was performed. Public-repository settings and tag protection are documented in RELEASING.md.
+
+
+## 2026-10-11 — Windows persistence fix for 0.1.2
+
+Native tests on the Windows lab guest reproduced directory fsync failures after state replacement: arming rolled back into degraded mode. Added platform-specific replacement (Windows MoveFileExW replace/write-through; Unix rename/directory sync), a Unicode-path replacement/restart regression, and Windows-native vet/test CI jobs. Native Windows suite, Linux race suite, PowerShell 46/46, workflow lint and release/setup script checks pass. Console/token/arm/disarm smoke test passed on Windows. See docs/validation/2026-10-11-windows-server.md. Independent adversarial review is still pending; this release change must not be treated as signed off. VM deployment and public tag protection remain pending.
+
+
+## 2026-10-11 — UEFI VM boot and loader guard
+
+A disposable Proxmox OVMF/Q35 VM booted through the Windows-hosted proxy DHCP/TFTP shim/iPXE chain into automatically started WinPE. An unarmed capture had no proxy offers; the armed run delivered boot files and consumed its arm. UEFI exposed a missing manifest injection: trailing initrd arguments did not give the fetched MAC-address URL the required image name. Added explicit --name manifest.json to both boot scripts; real VM progress reports then worked. Removed the loader's implicit default-profile fallback so a missing armed profile stops before installation; static fallback requires explicit -Manifest. Regression passes with PowerShell 47/47, compatibility lint, Windows native vet/test/build and Linux race tests. GitHub CI and Documentation passed for commit 6409447.
+
+The corrected default-profile run completed imaging/reclaim and booted Windows 26300.9457, with engine done at 359.4 seconds. An initial download checksum failure remains unexplained; local source, independent Windows streaming and the fresh successful VM transfer match the pin, which was not weakened. Default-profile OOBE took additional time, then reached the normal country-selection screen. A VM snapshot was preserved. Optional-account auto-desktop, admin membership, main-answer-file deletion and automatic bootstrap passed. Next-logon password-change and remaining setup XML inspection were not verified; tracked in #8. Lab processes/firewall rules/tasks/mounts were confirmed absent, and VM 100 was stopped with two retained snapshots. Full details and final results belong in docs/validation/2026-10-11-windows-server.md. Independent review, tag protection and release publishing remain pending.

@@ -1,52 +1,57 @@
-# Releasing minute2win
+---
+title: Releasing Minute2Win
+---
 
-A checklist (STD-003 rule 3): every step is a step.
+# Releasing Minute2Win
 
-1. **Before.** Changes go in through a PR using the template (STD-002). Non-trivial diffs get an astra review, adjudicated and
-   logged in `docs/dev-process.md`, with a re-review after the fix round (STD-001). CI is green (`ci.yml`: Pester + lint, Go,
-   Playwright).
-2. **Docs and version.** `VERSION`, the README version line and the top CHANGELOG entry agree. The README verification table,
-   the CHANGELOG and CLAUDE.md's dated re-verify list all use the same claim levels: *unit-tested*, *VM-verified*,
-   *hardware-verified*. Nothing is called booted unless it booted.
-3. **Merge, then tag the merge commit:** `git tag -a vX.Y.Z -m "minute2win X.Y.Z"` and push the tag. `release.yml` builds the
-   assets (Linux server for amd64/arm64, the boot-files zip, `SHA256SUMS`) and attaches them to a draft release.
-4. **Verify the assets** from the release page: download them, check `sha256sum -c SHA256SUMS`, check the server
-   runs (`--help`, serves `/`), and check the zip holds the `tools/stage.sh` tree.
-5. **Publish as a normal (Latest) release.** Anything not yet verified or known to be unsafe goes in the notes' "Known issues"
-   **and** a linked tracking issue, written concretely: what, where, impact, workaround.
-6. **Deploying the boot files** (uploading to R2 or a LAN web server) is a separate, deliberate step, not part of a release.
+Releases package the server and deployment scripts. They do not publish Windows images or deploy boot files to an image host.
 
-## CI signing (one-time setup)
+## Public repository preparation
 
-The Windows executable is signed in CI with [Azure Artifact Signing](https://learn.microsoft.com/azure/artifact-signing/), the same
-setup as SpoolSmith and kvm-it (D-0047). There is no key, PFX or password anywhere (STD-006): the `sign` job gets a short-lived
-token through a GitHub OIDC federated credential that trusts exactly `<repo>:environment:release`.
+Before changing repository visibility:
 
-Prerequisite (already true for the studio): a signing account with an **Active** public-trust certificate profile
-(`jdspille` / `primary-profile`, East US). Then, once per repo:
+1. Review tracked files and Git history for credentials, customer data, private logs and artifacts. A public checkout exposes history as well as current files. This documentation revision is not a full history audit.
+2. Create an active tag ruleset for `v*` that restricts creation, update and deletion to authorized release administrators. The private/free-plan limitation recorded on 2026-10-10 must not be carried forward as an exception for a public repository. Check workflow permissions and the `release` environment's permitted refs/reviewers.
+3. Enable private vulnerability reporting in Settings → Security where available.
+4. In Settings → Pages, select **GitHub Actions** as the build/deployment source. The `pages.yml` workflow publishes the docs on main and can be run manually. It builds PRs without publishing them.
+5. Check the first Pages build and deployment. The expected project URL is `https://spilloid.github.io/minute2win/`; repository visibility and Pages settings are managed separately.
+6. Confirm that release notes and linked issues disclose the current verification level. Default image URLs are reference configuration, not a public asset service.
 
-1. **GitHub half, step 1** (wherever `gh` is signed in as a repo admin):
-   `scripts/setup-signing-github.sh prefix` turns on immutable OIDC subject claims and prints the subject prefix.
-2. **Azure half** (wherever `az login` works for someone who can create app registrations and assign roles; it needs no GitHub
-   access): `pwsh scripts/setup-signing-azure.ps1 -AccountName jdspille -ResourceGroup RG0 -ProfileName primary-profile -SubjectPrefix <prefix>`
-   creates the `minute2win-release-signing` app registration and service principal, the federated credential, and the **Certificate
-   Profile Signer** role on that profile only. It prints JSON.
-3. **GitHub half, step 2:** `scripts/setup-signing-github.sh apply < that.json` creates the `release` environment, restricts it to
-   `main` and `v*` tags, and sets the variables and the three Azure identifiers (IDs, not key material).
-4. Run the **signing check** workflow (Actions, run manually). It builds, signs and verifies a throwaway executable and publishes
-   nothing. Do this before the first tag and after any change here.
+Tag protection matters because a pushed tag selects the release workflow itself. The workflow also requires the tagged commit to be on main and pins that SHA before signing; those checks complement repository rules rather than replace them.
 
-Why two scripts: so no GitHub token has to be copied onto the machine that holds the `az` login. Both are idempotent.
-If signing is not configured, `release.yml` fails before signing and attaches **nothing**: a release is never published unsigned.
+## Release checklist
 
-## Who can start a signing run (tag protection)
+1. Merge changes through a PR. CI must pass. Independently review non-trivial behavior/signing changes and record findings in `docs/dev-process.md`.
+2. Update VERSION, the README version and CHANGELOG together. Keep `docs/STATUS.md` and implementation notes aligned with actual evidence. Documentation-only changes do not change the release version.
+3. Tag the merged commit with an annotated `vX.Y.Z` tag and push it. `release.yml` also supports manual rebuilds of an existing tag. It refuses tags outside the strict version format or commits not on main.
+4. Wait for build, Windows signing and signature/timestamp verification. The workflow creates or replaces assets only on a **draft** release and refuses to modify a published release.
+5. Download all assets from that draft. Run `sha256sum -c SHA256SUMS`. Confirm the expected Linux amd64/arm64 archives, Windows x64 zip, boot-files zip and SIGNATURES.txt are present.
+6. Extract the Linux archive, check `-help`, and serve `/` on a loopback listener with a token. Inspect the Windows signature evidence and, on Windows, verify the extracted executable with Get-AuthenticodeSignature. Check the boot zip matches the `tools/stage.sh` tree. Record what actually ran, including any platform not exercised.
+7. Write useful release notes: changes, setup requirements, verification evidence, and concrete known issues with tracking links. Do not claim an end-to-end Windows boot based on unit tests or signing success.
+8. Publish as a normal release and mark it Latest. If a published artifact needs replacement, cut a patch release.
+9. Deploying boot files to an operator image host is a separate deliberate action. Update between deployments and keep scripts and manifests consistent.
 
-A `v*` tag push starts `release.yml`, and the `release` environment allows `main` and `v*` tags, so whoever can push a tag can start a
-signing run. Controls in place: the build job refuses any tag whose commit is not on `main` and pins that commit for the signing job
-(a tag on an unreviewed commit cannot be built or signed); the tag is resolved under `refs/tags/` so a branch of the same name cannot
-stand in for it; and only the signing job holds the OIDC identity. **Known gap:** GitHub tag rulesets (restricting who may create or
-move `v*` tags) are not available on a private repo on the free plan (HTTP 403 when tried 2026-10-10). Because the workflow file
-itself comes from the tagged commit, an attacker with write access could push a tag on a commit that edits the workflow. Today
-the only writer is the owner. **Before anyone else gets write access, or if the repo goes public, enable a ruleset** for
-`refs/tags/v*` (restrict creation, update and deletion to admins). The release also only ever writes a **draft** and refuses to touch a
-published release.
+## Azure Artifact Signing setup
+
+Windows signing uses Azure Artifact Signing with GitHub OIDC. No signing private key or PFX is stored in GitHub. The `release` environment supplies the configuration and Azure identifiers; only the signing job receives `id-token: write`.
+
+Prerequisites: an active public-trust signing certificate profile and an Azure account authorized to create application registrations/service principals and assign the Certificate Profile Signer role. Use your own account/profile names and identifiers.
+
+1. On a host where gh is authenticated as a repository administrator, run `scripts/setup-signing-github.sh prefix`. It configures immutable OIDC subject claims and prints the subject prefix.
+2. On a host with a suitable Azure login, run:
+
+   ```powershell
+   .\scripts\setup-signing-azure.ps1 -AccountName <account> -ResourceGroup <resource-group> -ProfileName <profile> -SubjectPrefix <prefix>
+   ```
+
+   This creates the signing identity, federated credential and narrowly scoped role assignment, then prints JSON.
+3. Feed the output to `scripts/setup-signing-github.sh apply < signing-config.json` on the GitHub-authenticated host. It configures the release environment, allowed refs, variables and Azure identifiers. Keep the temporary file private and delete it afterward.
+4. Run the manual **signing check** workflow before tagging. It builds, signs and verifies a throwaway executable without publishing.
+
+The split setup avoids moving a GitHub credential onto an Azure-authenticated host. The signing job fails if any required configuration is missing and does not fall back to unsigned Windows artifacts. The verifier checks the expected certificate subject and RFC 3161 timestamp.
+
+## Documentation deployment
+
+`pages.yml` builds the public Markdown guides with Jekyll, uploads a Pages artifact, and deploys from main to the `github-pages` environment. PR jobs build only and have no deployment permission. The site excludes the historical dev-process log and is independent of the release/signing environment.
+
+GitHub's [custom Pages workflow guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) describes the repository setting and deployment actions.

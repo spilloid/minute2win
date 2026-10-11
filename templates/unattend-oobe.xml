@@ -4,7 +4,8 @@
   replaces __USER__ and __PASSWORD__ (the known baseline password) and writes W:\Windows\Panther\unattend.xml.
   Skips the EULA, online-account and Wi-Fi screens and creates one local administrator who logs on once automatically;
   the first logon deletes this file and forces a password change at the next logon.
-  UNTESTED on build 26300 (OOBE answer-file behaviour changes between builds; check the first run on a VM).
+  Observed on one Windows 11 Pro 26300.9457 VM: auto-logon, administrator membership and main-file deletion passed.
+  Follow-up sign-in/password-change and remaining setup XML inspection are unresolved (GitHub issue #8); validate your image.
 -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="oobeSystem">

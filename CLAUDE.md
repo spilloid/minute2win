@@ -4,6 +4,10 @@ minute2win: zero-touch Windows deployment from WinPE, plus `minute2win-server` (
 Branding and goal: an NVMe machine on 1 GbE from network boot to flashed Windows in about a minute. Every phase is timed
 (`timing.json`, the board) so that claim is measured, never asserted.
 
+## Public documentation
+
+README.md is the product introduction; docs/STATUS.md is the public verification record. Keep public setup instructions independent of the maintainer image host. The Pages site builds docs/ with Jekyll; dev-process.md stays a historical repository record and is excluded from the site. Do not change VERSION for documentation-only updates.
+
 ## Rules
 
 - **Zero-touch is the design.** The engine wipes without asking. Don't add prompts or make disk selection mandatory. Guards
@@ -37,8 +41,13 @@ STD-008 (UI capture and overflow).
 
 ## Things to re-verify before trusting them
 
+- 2026-10-11: Windows native server tests found directory fsync made all arms fail. The 0.1.2 fix uses Windows write-through replacement; native Windows tests and authenticated API smoke checks pass. See docs/validation/2026-10-11-windows-server.md. Subsequent Windows-hosted PXE, VM imaging and installed-OS boot evidence is recorded below; do not extend it to physical hardware or Secure Boot.
+
+- 2026-10-11: **0.1.2 release candidate** fixes native Windows state replacement and UEFI manifest naming, with a fail-closed loader when injection is absent. Native Windows checks, Linux race tests, PowerShell 47/47 and both GitHub workflows pass. Draft PR #6 contains public documentation and a Pages workflow; release/tag protection and independent review remain pending.
+- 2026-10-11: **Windows-hosted UEFI PXE and imaging now observed.** A disposable Proxmox OVMF/Q35 VM booted through proxy DHCP, shim/iPXE TFTP, wimboot and rebuilt auto-running WinPE. The default profile imaged Windows 11 Pro 26300.9457, reclaimed staging, booted its Windows disk and reached normal OOBE. Logs prove automatic SetupComplete/bootstrap success. An unarmed reboot was ignored. The initial image checksum failure remains unexplained; independent source hashes and a fresh VM transfer matched the pin. Optional-account auto-desktop, local-admin membership, main-answer-file deletion and bootstrap passed. Follow-up sign-in/password-change and remaining setup XML checks are unresolved, tracked in #8. the Windows lab host lab processes/firewall/tasks/mounts were cleaned up; VM 100 remains stopped with two snapshots. Secure Boot, physical firmware, port 4011 and OEM-key behavior remain unverified. See docs/validation/2026-10-11-windows-server.md; older notes below describe the earlier baseline.
+
 - 2026-10-10: **Signing is set up and proven** (Azure Artifact Signing over OIDC; the manual `signing check` signed and verified a throwaway
-  exe as `CN=Joseph Spillers`, timestamped). The Azure half ran in Azure Cloud Shell because kubert's `az` login was blocked by security
+  exe as `CN=[test signing identity]`, timestamped). The Azure half ran in Azure Cloud Shell because the Windows lab host's `az` login was blocked by security
   defaults (AADSTS530035). The Signer role is on the certificate profile only. The signing certificate lives three days: signatures need the
   RFC 3161 countersignature, which the verifier requires. The first real release run is 0.1.1.
 

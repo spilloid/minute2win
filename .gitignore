@@ -2,3 +2,7 @@ dist/
 /server/server
 /server/server.exe
 *.test
+
+_site/
+.jekyll-cache/
+docs/.jekyll-cache/

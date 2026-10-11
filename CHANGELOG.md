@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-11
+
+- Fix Windows state persistence: directory sync returned Access is denied, causing the server to become degraded and reject every arm. The Windows replacement now uses MoveFileExW with replacement and write-through flags after flushing the temporary file; Unix keeps rename plus directory sync. Arms still never survive a restart.
+- Name the injected manifest explicitly in iPXE for UEFI wimboot. The loader now refuses to run without injection unless a static profile is explicitly selected with `-Manifest`, preventing a missing armed profile from silently choosing the default.
+- Validate Windows-hosted UEFI PXE through real OVMF firmware, automatic WinPE imaging, Windows disk boot, normal OOBE and automatic first-boot bootstrap on a disposable Proxmox VM. Record measured timing and remaining hardware/Secure Boot limits.
+- Run server tests natively on Windows in CI, with a regression covering repeated state replacement under a Unicode path, preserved deployment history and dropped arms on restart.
+
+- Public documentation: focused README, setup and boot-asset guides, server/manifest/API references, troubleshooting, and explicit verification status.
+- GitHub Pages documentation workflow with a responsive light/dark layout; PRs build without deployment privileges.
+- Public contribution/security guidance and release preparation notes for tag protection and operator-owned image hosting.
+
 ## [0.1.1] - 2026-10-10 (Windows server build, signed releases, built-in PXE; still never booted a Windows deploy)
 
 Everything below was adversarially reviewed (docs/dev-process.md). Signing is proven end to end with the manual `signing check`
