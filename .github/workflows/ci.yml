@@ -99,8 +99,9 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
           set -euo pipefail
+          img="$GITHUB_WORKSPACE/out/minute2win-server-$(cat VERSION)-x86_64.AppImage"
           cd "$(mktemp -d)"
-          "$GITHUB_WORKSPACE"/out/*.AppImage -listen 127.0.0.1:18081 -data "" &
+          "$img" -listen 127.0.0.1:18081 -data "" &
           pid=$!
           for _ in $(seq 50); do curl -sf http://127.0.0.1:18081/api/state >/dev/null && break; sleep 0.1; done
           curl -sf http://127.0.0.1:18081/api/state >/dev/null
