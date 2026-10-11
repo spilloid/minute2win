@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{{ site.description | escape }}">
+  <title>{{ page.title | escape }} · {{ site.title | escape }}</title>
+  <link rel="stylesheet" href="{{ '/assets/docs.css' | relative_url }}">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header>
+    <a class="brand" href="{{ '/' | relative_url }}">minute<span>2</span>win</a>
+    <span class="tagline">Windows deployment, on your terms.</span>
+    <a href="https://github.com/spilloid/minute2win/releases">Downloads ↗</a>
+  </header>
+  <div class="shell">
+    <nav aria-label="Documentation">
+      <p class="nav-title">Documentation</p>
+      {% assign guides = 'index.md,GETTING_STARTED.md,BOOT_ASSETS.md,MANIFESTS.md,SERVER.md,API.md,TROUBLESHOOTING.md,STATUS.md,RELEASING.md' | split: ',' %}
+      {% for path in guides %}
+        {% assign guide = site.pages | where: 'path', path | first %}
+        <a href="{{ guide.url | relative_url }}" {% if page.path == path %}aria-current="page"{% endif %}>{{ guide.title | escape }}</a>
+      {% endfor %}
+      <p class="nav-title">Project</p>
+      <a href="https://github.com/spilloid/minute2win">Source on GitHub ↗</a>
+      <a href="https://github.com/spilloid/minute2win/issues">Issues ↗</a>
+    </nav>
+    <main id="content">
+      <div class="status">Early release · Windows deployment not yet verified end to end</div>
+      {{ content }}
+      <footer>MIT licensed · <a href="https://github.com/spilloid/minute2win/blob/main/docs/{{ page.path }}">Edit this page</a></footer>
+    </main>
+  </div>
+</body>
+</html>

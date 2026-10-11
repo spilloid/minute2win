@@ -4,6 +4,10 @@ minute2win: zero-touch Windows deployment from WinPE, plus `minute2win-server` (
 Branding and goal: an NVMe machine on 1 GbE from network boot to flashed Windows in about a minute. Every phase is timed
 (`timing.json`, the board) so that claim is measured, never asserted.
 
+## Public documentation
+
+README.md is the product introduction; docs/STATUS.md is the public verification record. Keep public setup instructions independent of the maintainer image host. The Pages site builds docs/ with Jekyll; dev-process.md stays a historical repository record and is excluded from the site. Do not change VERSION for documentation-only updates.
+
 ## Rules
 
 - **Zero-touch is the design.** The engine wipes without asking. Don't add prompts or make disk selection mandatory. Guards
@@ -36,6 +40,8 @@ STD-002 (PR template), STD-003 (docs and version in the same change: `VERSION`, 
 STD-008 (UI capture and overflow).
 
 ## Things to re-verify before trusting them
+
+- 2026-10-11: Windows native server tests found directory fsync made all arms fail. The 0.1.2 fix uses Windows write-through replacement; native Windows tests and authenticated API smoke checks pass. See docs/validation/2026-10-11-windows-server.md. Long-lived lab execution and VM deployment are still pending; do not claim a Windows installation has booted.
 
 - 2026-10-10: **Signing is set up and proven** (Azure Artifact Signing over OIDC; the manual `signing check` signed and verified a throwaway
   exe as `CN=Joseph Spillers`, timestamped). The Azure half ran in Azure Cloud Shell because kubert's `az` login was blocked by security

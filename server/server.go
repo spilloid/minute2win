@@ -114,8 +114,8 @@ func (s *Server) save() error {
 	if err != nil {
 		return err
 	}
-	// Durable, not just atomic: fsync the file before the rename and the directory after it, so a power cut right after a boot
-	// script was served cannot bring the consumed arm back.
+	// Flush the file before the platform-specific replacement. Unix also syncs the parent directory; Windows
+	// requests a write-through replacement. Load always drops arms, including after uncertain saves or power loss.
 	tmp := s.StatePath + ".tmp"
 	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -132,15 +132,7 @@ func (s *Server) save() error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, s.StatePath); err != nil {
-		return err
-	}
-	d, err := os.Open(filepath.Dir(s.StatePath))
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	return d.Sync()
+	return replaceStateFile(tmp, s.StatePath)
 }
 
 const manifestWindow = 10 * time.Minute

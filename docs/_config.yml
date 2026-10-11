@@ -1,0 +1,20 @@
+title: Minute2Win
+description: A self-hosted Windows deployment console and boot toolkit.
+url: https://spilloid.github.io
+baseurl: /minute2win
+markdown: kramdown
+highlighter: rouge
+plugins:
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: false
+exclude:
+  - dev-process.md
+  - validation
+  - README.md
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

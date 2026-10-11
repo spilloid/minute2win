@@ -178,3 +178,16 @@ Round 4 (astra): finding C **CLOSED**, no regression, **SIGN-OFF: yes** for the 
 and noted rather than fixed: the "burn the ordinary key" step in the recheck test runs after the noise budget is already exhausted so it does not itself stamp that key (the separate
 `revoked:` key is covered by source inspection), and the TFTP test checks the backoff constant, not the actual sleep or listener dispatch. Still UNVERIFIED: any real PXE firmware (BIOS and UEFI), TFTP to
 a real client, the Secure Boot shim chain, and anything PXE on Windows beyond compiling; the write deadlines and log budgets were tested with fakes and a simulated clock, not under real socket pressure.
+
+
+## 2026-10-11 — Public documentation preparation
+
+- Rewrote the README around the product, console preview and operator-owned setup. Split reference details into public setup, boot assets, manifest, server, API, troubleshooting and status guides. Added contributor/security guidance and public release preparation. Retained the historical review log in the repository; excluded it from Pages.
+- Added a GitHub Pages Actions workflow and responsive Jekyll layout with light/dark styles. PRs build only; deployment is restricted to main with Pages permissions scoped to the deploy job. No application behavior or release version changed.
+- Verified: actionlint passed; the exact ghcr.io/actions/jekyll-build-pages:v1.0.13 image built all nine pages; source and generated local links/assets checked; Playwright exercised all nine pages at desktop and phone widths in light/dark modes, checking active navigation, one heading and no document-wide horizontal overflow. Desktop/light and phone/dark screenshots were inspected. git diff --check passed.
+- No independent adversarial review performed for this documentation change. No full Git history disclosure audit, live Pages deployment, repository visibility change or Windows deployment was performed. Public-repository settings and tag protection are documented in RELEASING.md.
+
+
+## 2026-10-11 — Windows persistence fix for 0.1.2
+
+Native tests on the Windows lab guest reproduced directory fsync failures after state replacement: arming rolled back into degraded mode. Added platform-specific replacement (Windows MoveFileExW replace/write-through; Unix rename/directory sync), a Unicode-path replacement/restart regression, and Windows-native vet/test CI jobs. Native Windows suite, Linux race suite, PowerShell 46/46, workflow lint and release/setup script checks pass. Console/token/arm/disarm smoke test passed on Windows. See docs/validation/2026-10-11-windows-server.md. Independent adversarial review is still pending; this release change must not be treated as signed off. VM deployment and public tag protection remain pending.
