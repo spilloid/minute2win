@@ -74,6 +74,7 @@ jobs:
             cp -r manifests LICENSE THIRD_PARTY_NOTICES.md "$d/"
             tar czf "out/$d.tar.gz" "$d"
           done
+          tools/appimage.sh "$V" "minute2win-server-$V-linux-amd64/minute2win-server" "out/minute2win-server-$V-x86_64.AppImage"
           # The Windows server goes to the signing job unsigned; it is zipped only after it is signed.
           (cd server && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "../stage-win/minute2win-server/minute2win-server.exe" .)
           cp -r manifests LICENSE THIRD_PARTY_NOTICES.md stage-win/minute2win-server/
@@ -206,6 +207,7 @@ jobs:
           minute2win-$V-bootfiles.zip
           minute2win-server-$V-linux-amd64.tar.gz
           minute2win-server-$V-linux-arm64.tar.gz
+          minute2win-server-$V-x86_64.AppImage
           minute2win-server-$V-windows-x64.zip"
           expected="$(printf '%s\n' "${expected//  /}" | sort)"
           actual="$(find . -maxdepth 1 -type f -printf '%f\n' | sort)"

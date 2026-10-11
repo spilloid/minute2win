@@ -78,3 +78,37 @@ jobs:
         run: |
           pip install pyyaml
           python3 tests/release_workflow_test.py
+  appimage:
+    name: AppImage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable   # always the latest stable Go (operator preference); the go directive in go.mod is the language floor
+          cache: false
+      - name: Build the AppImage
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y squashfs-tools
+          (cd server && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../minute2win-server .)
+          tools/appimage.sh "$(cat VERSION)" minute2win-server "out/minute2win-server-$(cat VERSION)-x86_64.AppImage"
+      # Runs without FUSE (hosted runners have none) by extracting itself; the image content is the same.
+      - name: Smoke test
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          set -euo pipefail
+          img="$GITHUB_WORKSPACE/out/minute2win-server-$(cat VERSION)-x86_64.AppImage"
+          cd "$(mktemp -d)"
+          "$img" -listen 127.0.0.1:18081 -data "" &
+          pid=$!
+          for _ in $(seq 50); do curl -sf http://127.0.0.1:18081/api/state >/dev/null && break; sleep 0.1; done
+          curl -sf http://127.0.0.1:18081/api/state >/dev/null
+          curl -s http://127.0.0.1:18081/boot/aa:bb:cc:dd:ee:ff | grep -q '^exit 1$'   # an unarmed MAC boots its disk
+          kill "$pid"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: out/*.AppImage
+          if-no-files-found: error
