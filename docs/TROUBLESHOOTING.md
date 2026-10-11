@@ -12,9 +12,10 @@ Begin with the server console output and [Status](STATUS.md). A consumed arm mea
 | HTTP 403 for boot/image files | Replace the restricted maintainer URL with your host; check host ACLs and target network access |
 | No built-in PXE offer | MAC must be armed and unexpired; normal DHCP must supply an address; check UDP 67/4011, privileges and architecture |
 | Startup cannot bind a PXE port | Check for dnsmasq/another PXE service or missing privileges; do not run competing answerers for the same clients |
-| TFTP file refused | File must exist directly in pxe-dir, with exact case, as a regular file without symlinks |
+| TFTP file refused | File must exist directly in pxe-dir, with matching case on case-sensitive filesystems, as a regular file without symlinks |
 | Wrong address advertised | Match a specific listen address and pxe-ip; for multiple IPv4 addresses on non-Linux hosts set pxe-ip explicitly |
 | WinPE leaves a prompt | Confirm startnet came from this builder and was not built with -Manual; inspect its loader command |
+| Boot manifest was not injected | Use the updated iPXE script with `initrd --name manifest.json`; confirm the server manifest request succeeds. The loader stops before installation rather than selecting a default profile |
 | Loader cannot download scripts | Builder Base and hosted tree must agree; check WinPE NIC drivers, DNS and certificate trust |
 | Image checks fail before wipe | Check HTTPS URI, image size, staging space, disk capacity and manifest values |
 | Download hash fails after wipe | Recheck the exact hosted bytes/hash; stabilize image hosting before another attempt |

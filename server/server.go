@@ -378,7 +378,7 @@ func (s *Server) boot(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	base := strings.TrimRight(s.ImageBase, "/")
 	fmt.Fprintf(w, "#!ipxe\necho minute2win: %s armed for %s, deploying (this wipes the disk)\n"+
-		"kernel %s/wimboot\ninitrd %s/BCD BCD\ninitrd %s/boot.sdi boot.sdi\ninitrd %s/manifest/%s manifest.json\ninitrd %s/boot.wim boot.wim\nboot\n",
+		"kernel %s/wimboot\ninitrd %s/BCD BCD\ninitrd %s/boot.sdi boot.sdi\ninitrd --name manifest.json %s/manifest/%s manifest.json\ninitrd %s/boot.wim boot.wim\nboot\n",
 		mac, a.Manifest, base, base, base, origin(r), mac, base)
 }
 

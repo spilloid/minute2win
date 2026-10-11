@@ -103,7 +103,7 @@ host.
 source obligations). Put your own copies in `-pxe-dir`: build them from https://ipxe.org, or use the iPXE project's published signed
 pair that kvm-it pins (in the separate [kvm-it repository](https://github.com/spilloid/kvm-it), under `firmware/ipxe/signed/`; its `scripts/fetch-ipxe-signed.sh` re-downloads and checks them).
 For **Secure Boot**, put the shim and iPXE side by side in `-pxe-dir` (`BOOTX64.EFI` and `IPXE.EFI`) and start
-with `-pxe-file-x64 BOOTX64.EFI`. TFTP names are matched exactly as sent (case included), so if a client asks for a name you don't
+with `-pxe-file-x64 BOOTX64.EFI`. TFTP passes the requested spelling to the filesystem. Names must match case on case-sensitive filesystems; Windows may accept different case. If a client asks for a name you don't
 have, the log shows `tftp: ... refused "<name>"`.
 
 **Security.** TFTP has no authentication and can't know which MAC is asking, so anyone who can reach UDP 69 can download anything in

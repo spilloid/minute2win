@@ -49,7 +49,7 @@ windows11/
       win11-pro.json
 ```
 
-The release boot-files zip contains the staged scripts, not Windows images or boot binaries. Replace staged `win11-pro.json` with your own profile if you use the loader's fallback/static route; add other profiles as needed. With server arms, the server injects its selected manifest instead.
+The release boot-files zip contains the staged scripts, not Windows images or boot binaries. Replace staged `win11-pro.json` with your own profile for static boots; add other profiles as needed. Both the static iPXE script and server boot script inject the selected profile as `manifest.json` using iPXE's explicit `--name` option. The loader stops if injection is missing. A deliberate manual fallback requires `install.ps1 -Base <your-base> -Manifest <profile-name>`.
 
 Host the directory at your configured base URL. The builder's `-Base`, server's `-image-base`, and hosted loader/engine tree must agree. The Windows image URI in the manifest can point elsewhere. WinPE must trust any HTTPS certificate; browser access alone does not prove WinPE certificate trust.
 
