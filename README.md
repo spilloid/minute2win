@@ -4,7 +4,7 @@ Zero-touch Windows deployment from WinPE. A machine network-boots (minute2win-se
 starts, and minute2win **wipes the first internal disk** and installs Windows from a verified image, with no input. Then it reboots
 into Windows and runs a first-boot bootstrap.
 
-Version **0.1.0** ([releases](https://github.com/spilloid/minute2win/releases), [releasing](docs/RELEASING.md)). **Status: unit-tested, never booted.** Nothing here has deployed a machine yet; see "Verification" below.
+Version **0.1.1** ([releases](https://github.com/spilloid/minute2win/releases), [releasing](docs/RELEASING.md)). **Status: unit-tested and reviewed; no Windows deployment has ever been run end to end.** The PXE front end has been seen working in a QEMU VM on a simulated LAN (BIOS stage only), never on real PXE firmware. The Windows build is signed in CI. See "Verification" below.
 
 ## It is a power tool
 

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-10 (Windows server build, signed releases, built-in PXE; still never booted a Windows deploy)
+
+Everything below was adversarially reviewed (docs/dev-process.md). Signing is proven end to end with the manual `signing check`
+workflow (a throwaway exe signed by `CN=Joseph Spillers`, timestamped by Microsoft, `Valid`); this is the first release to go through the
+signing pipeline. Known issues: #2.
+
 - Windows: the server builds for Windows (`minute2win-server-X-windows-x64.zip`), opens the UI in your browser on start, finds
   `manifests/` next to the executable, and prints the line targets should chain (`http://<this PC>:8080/boot/${net0/mac}`).
   With kvm-it's USB boot drive a laptop running it is the whole deploy console: the target only needs ordinary DHCP.

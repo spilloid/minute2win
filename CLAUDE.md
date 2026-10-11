@@ -37,6 +37,11 @@ STD-008 (UI capture and overflow).
 
 ## Things to re-verify before trusting them
 
+- 2026-10-10: **Signing is set up and proven** (Azure Artifact Signing over OIDC; the manual `signing check` signed and verified a throwaway
+  exe as `CN=Joseph Spillers`, timestamped). The Azure half ran in Azure Cloud Shell because kubert's `az` login was blocked by security
+  defaults (AADSTS530035). The Signer role is on the certificate profile only. The signing certificate lives three days: signatures need the
+  RFC 3161 countersignature, which the verifier requires. The first real release run is 0.1.1.
+
 - 2026-10-10: **Nothing has booted.** WinPE over wimboot, the engine, SetupComplete and the OOBE answer file on build 26300
   have only been unit-tested.
 - 2026-10-10: `wimboot` puts an initrd named `manifest.json` in `X:\Windows\System32`. That's from wimboot's documented behaviour,
