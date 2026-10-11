@@ -10,6 +10,14 @@ A self-hosted console and boot toolkit for zero-touch Windows installation.
 
 > Deployment erases the selected disk. Use a disposable VM for initial validation. The one-minute deployment goal has not been measured.
 
+## The console
+
+![The console after arming a machine: the warning that an armed machine is wiped on its next network boot, the armed list with a Disarm button, and an empty deployments board.](assets/screenshots/armed-desktop.png)
+
+![The console after the machine booted and reported: the arm is consumed and the deployments board shows each phase's lap time and a stopwatch.](assets/screenshots/deployed-desktop.png)
+
+*Demo data from the automated UI test: the MAC, the QEMU machine and the 58.1 s lap times are fixtures, not a measured deployment.*
+
 | Guide | What it covers |
 | --- | --- |
 | [Getting started](GETTING_STARTED.md) | Console preview, prerequisites, profiles, arming and first deployment |

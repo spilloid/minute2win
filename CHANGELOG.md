@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Documentation: console screenshots (desktop and phone) on the README, the docs home page and Getting started, captioned as UI-test demo data. `tests/ui/run.sh docs/assets/screenshots` regenerates them.
+
 ## [0.1.2] - 2026-10-11
 
 - Fix Windows state persistence: directory sync returned Access is denied, causing the server to become degraded and reject every arm. The Windows replacement now uses MoveFileExW with replacement and write-through flags after flushing the temporary file; Unix keeps rename plus directory sync. Arms still never survive a restart.

@@ -10,6 +10,10 @@ Minute2Win is a self-hosted Windows deployment toolkit: a small Go server with a
 
 > **Deployment erases the selected internal disk without a confirmation prompt.** Arming a machine is authorization to reimage it. Start with a disposable VM, use your own boot assets and Windows image, and set `M2W_TOKEN` before allowing network access.
 
+![The console after a machine booted and reported: nothing armed, one deployment with each phase's lap time.](docs/assets/screenshots/deployed-desktop.png)
+
+*Demo data from the automated UI test: the MAC, the QEMU machine and the 58.1 s lap times are fixtures, not a measured deployment.*
+
 ## What you get
 
 - **One deployment console:** a single server binary with a built-in web UI and JSON API. Linux amd64/arm64 and signed Windows x64 release builds.
