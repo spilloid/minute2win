@@ -19,6 +19,7 @@ From the repository root:
 | --- | --- |
 | tests/run.sh | Pester and PSScriptAnalyzer in Podman, including PowerShell 5.1 syntax |
 | tests/ui/run.sh | Playwright console flow and screenshots; inspect captures |
+| tests/site-version.sh | The product page names only the VERSION release |
 | tests/pxe/pxe-lan.sh | QEMU BIOS iPXE simulation on a bridged LAN |
 | tests/vm/deploy-vm.sh | Intended full VM chain; requires external assets, kvm-it harness and substantial free disk space |
 | tests/setup-signing-github.test.sh | GitHub signing setup script with a fake gh |
@@ -37,6 +38,6 @@ Read each harness before running it. The VM deployment harness uses a disposable
 
 ## Documentation
 
-Public guides live in `docs/`. The Pages workflow builds them with Jekyll and deploys only from main. Markdown guides remain readable on GitHub. Keep local links relative and follow the existing front matter/layout; use .md links in source, which the Pages build converts to .html destinations.
+Public guides live in `docs/`. The Pages home is the static product page `docs/index.html` (styles in `docs/assets/site.css`); the documentation home is `docs/guide.md`. Keep the product page within the evidence in `docs/STATUS.md`, keep its disk-erase warning visible, and label demo screenshots as such. The Pages workflow builds them with Jekyll and deploys only from main. Markdown guides remain readable on GitHub. Keep local links relative and follow the existing front matter/layout; use .md links in source, which the Pages build converts to .html destinations.
 
 `docs/dev-process.md` is historical engineering evidence and is excluded from the Pages build. CLAUDE.md contains implementation guidance; the public source of verification claims is `docs/STATUS.md`. Never promote a claim from unit-tested to VM/hardware-verified without actual boot evidence.

@@ -6,7 +6,7 @@ Branding and goal: an NVMe machine on 1 GbE from network boot to flashed Windows
 
 ## Public documentation
 
-README.md is the product introduction; docs/STATUS.md is the public verification record. Keep public setup instructions independent of the maintainer image host. The Pages site builds docs/ with Jekyll; dev-process.md stays a historical repository record and is excluded from the site. Do not change VERSION for documentation-only updates.
+README.md is the product introduction; docs/STATUS.md is the public verification record. Keep public setup instructions independent of the maintainer image host. The Pages home is the product page `docs/index.html` (static HTML with `docs/assets/site.css`; no front matter, so Jekyll copies it as is); the documentation home is `docs/guide.md`. The product page may pitch but claims nothing STATUS.md does not support, labels fixture screenshots as demo data, keeps the disk-erase warning in the hero, and names only the VERSION release (`tests/site-version.sh`). The Pages site builds docs/ with Jekyll; dev-process.md stays a historical repository record and is excluded from the site. Do not change VERSION for documentation-only updates.
 
 ## Rules
 
@@ -32,6 +32,7 @@ Stable latest, always (operator preference): CI and releases build with `go-vers
 | `tests/run.sh` | Pester + PSScriptAnalyzer in podman (no pwsh on the Linux host) |
 | `cd server && go vet ./... && go test ./...` | Server rules |
 | `tests/ui/run.sh [dir]` | Playwright: arm, boot, report, disarm, phone width, light/dark; look at the screenshots |
+| `tests/site-version.sh` | The product page names only the VERSION release (also run by the Pages workflow) |
 | `tests/pxe/pxe-lan.sh` | Built-in PXE on a simulated LAN in podman: separate DHCP server, QEMU (BIOS iPXE ROM) three times; from tcpdump captures (no drops): boot 1 answered and arm consumed, boot 2's PXE DISCOVER seen and not answered, boot 3 re-armed and answered again (positive control) |
 | `tests/vm/deploy-vm.sh` | Full chain in a VM (needs staged files uploaded, `localhost/win11-qemu`, ~40 GB free) |
 

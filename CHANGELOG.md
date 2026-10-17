@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Fix `scripts/verify-signature.ps1` on Windows PowerShell 5.1 (the shell a stock Windows 11 has): em dashes inside its strings, in a file without a BOM, were read as ANSI and became closing quotes, so the script did not parse there. CI runs it under pwsh 7, which reads UTF-8, so it had not shown. The separators are now ASCII, and a Pester test requires every PowerShell file to be ASCII or carry a UTF-8 BOM.
+- Product page: the Pages home (https://spilloid.github.io/minute2win/) is now a product page (`docs/index.html`, `docs/assets/site.css`) covering what minute2win does, the console, how a deployment runs, the safety guards, verification status, a loopback quick start and the guides. The disk-erase warning sits in the hero; the console screenshots are labelled as UI-test demo data, and the one-minute name is stated as a goal next to the one measured VM run (359.4 s). The documentation home moved from `docs/index.md` to `docs/guide.md` (`/guide.html`); the README, docs navigation and contributor notes link to it. `tests/site-version.sh`, run by the Pages workflow, fails if the page names a release other than VERSION.
 - Documentation: console screenshots (desktop and phone) on the README, the docs home page and Getting started, captioned as UI-test demo data. `tests/ui/run.sh docs/assets/screenshots` regenerates them.
 
 ## [0.1.2] - 2026-10-11

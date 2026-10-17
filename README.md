@@ -4,7 +4,7 @@
 
 Minute2Win is a self-hosted Windows deployment toolkit: a small Go server with a web console, an iPXE boot chain, and a PowerShell engine that installs Windows from a verified image. Arm a MAC address with a deployment profile, watch each phase on the live board, and keep deployment logs after reboot.
 
-[Download releases](https://github.com/spilloid/minute2win/releases) · [Getting started](docs/GETTING_STARTED.md) · [Documentation](docs/index.md) · [Known issues](docs/STATUS.md)
+[Download releases](https://github.com/spilloid/minute2win/releases) · [Getting started](docs/GETTING_STARTED.md) · [Documentation](docs/guide.md) · [Product page](https://spilloid.github.io/minute2win/) · [Known issues](docs/STATUS.md)
 
 **Current code version: 0.1.2. Early release.** Server logic and deployment helpers are unit-tested; the web console is tested with Playwright. A disposable Proxmox x64 UEFI VM has booted through Windows-hosted PXE, completed imaging and booted its installed Windows disk. It reached normal OOBE, and logs confirm automatic first-boot bootstrap success. The optional local-account profile reached the desktop automatically. Physical hardware and remaining setup checks are covered in Status. The name describes the one-minute goal, not a measured performance claim.
 
