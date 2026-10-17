@@ -12,6 +12,13 @@ Describe 'scripts parse' {
         [void][System.Management.Automation.Language.Parser]::ParseFile($_, [ref]$null, [ref]$errs)
         $errs | Should -BeNullOrEmpty
     }
+    # Windows PowerShell 5.1 (WinPE, a stock Windows 11) reads a file without a BOM as the ANSI code page, so a UTF-8 em dash
+    # inside a string becomes a closing quote and the script stops parsing. pwsh 7, which CI uses, reads UTF-8 and never notices.
+    It '<_> is ASCII, or carries a UTF-8 BOM, so Windows PowerShell 5.1 parses it the same' -ForEach @(Get-ChildItem (Split-Path $PSScriptRoot -Parent) -Recurse -Include *.ps1, *.psm1, *.psd1 | ForEach-Object FullName) {
+        $bytes = [IO.File]::ReadAllBytes($_)
+        $bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+        if (-not $bom) { @($bytes | Where-Object { $_ -ge 0x80 }).Count | Should -Be 0 }
+    }
 }
 
 Describe 'Get-M2WValue' {
@@ -146,7 +153,7 @@ Describe 'Test-M2WCapacity (checked before the wipe)' {
 Describe 'Add-M2WSetupComplete' {
     It 'prepends its line and keeps an existing script byte for byte' {
         $f = Join-Path ([IO.Path]::GetTempPath()) "sc-$([guid]::NewGuid()).cmd"
-        $old = [byte[]](0x40, 0x65, 0x63, 0x68, 0x6f, 0x20, 0xC3, 0xA9, 0x0D, 0x0A, 0x65, 0x78, 0x69, 0x74, 0x0D, 0x0A) # "@echo é" (UTF-8), "exit"
+        $old = [byte[]](0x40, 0x65, 0x63, 0x68, 0x6f, 0x20, 0xC3, 0xA9, 0x0D, 0x0A, 0x65, 0x78, 0x69, 0x74, 0x0D, 0x0A) # "@echo " plus e-acute as UTF-8 (C3 A9), then "exit"
         [IO.File]::WriteAllBytes($f, $old)
         Add-M2WSetupComplete $f
         $new = [IO.File]::ReadAllBytes($f)

@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Fix `scripts/verify-signature.ps1` on Windows PowerShell 5.1 (the shell a stock Windows 11 has): em dashes inside its strings, in a file without a BOM, were read as ANSI and became closing quotes, so the script did not parse there. CI runs it under pwsh 7, which reads UTF-8, so it had not shown. The separators are now ASCII, and a Pester test requires every PowerShell file to be ASCII or carry a UTF-8 BOM.
 - Documentation: console screenshots (desktop and phone) on the README, the docs home page and Getting started, captioned as UI-test demo data. `tests/ui/run.sh docs/assets/screenshots` regenerates them.
 
 ## [0.1.2] - 2026-10-11
