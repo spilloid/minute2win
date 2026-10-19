@@ -12,6 +12,8 @@ Only the current release line is actively maintained. There is no guaranteed res
 
 Use a trusted deployment network, set M2W_TOKEN, restrict access to the server and boot assets, and use HTTPS for image/script hosting where supported. The server's native HTTP listener does not encrypt bearer tokens. Arming/disarming require the token when set; state, boot and manifest delivery routes are not protected by that operator token.
 
+The server listens on loopback by default and refuses to listen on a network-reachable address without M2W_TOKEN unless started with `-insecure-no-token`. It refuses cross-origin browser requests on every state-changing route, requires a JSON content type on JSON mutations, and, with no token, accepts arming only at an IP address or `localhost` (a DNS-rebinding guard). There is no default image or boot-asset host. Release 0.1.2 and earlier had none of these protections: with those builds, always set M2W_TOKEN, even on loopback.
+
 The SHA-256 verifies image bytes against the manifest; it does not authenticate a maliciously replaced manifest or loader. Protect the whole boot chain. A deployment report key may be retrieved by another LAN host during delivery, allowing forged board status; confirm outcomes from the installed system and logs. See [Status](docs/STATUS.md) for accepted limitations.
 
 For public repositories, maintainers must protect release tag creation, updates and deletion before relying on signing. See [Releasing](docs/RELEASING.md).

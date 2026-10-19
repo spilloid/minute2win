@@ -57,7 +57,7 @@ jobs:
           pip install playwright==1.55.0
           python -m playwright install --with-deps chromium
           cd server && go build -o /tmp/m2w . && cd ..
-          /tmp/m2w -listen 127.0.0.1:18080 -manifests manifests -data "" &
+          /tmp/m2w -listen 127.0.0.1:18080 -manifests tests/ui/profiles -data "" -image-base https://boot.lab.internal/windows11 &
           for _ in $(seq 50); do curl -sf http://127.0.0.1:18080/api/state >/dev/null && break; sleep 0.1; done
           mkdir -p shots && python tests/ui/test_ui.py http://127.0.0.1:18080 shots
       - uses: actions/upload-artifact@v4

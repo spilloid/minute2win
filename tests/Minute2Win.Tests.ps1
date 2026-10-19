@@ -206,3 +206,39 @@ Describe 'boot loader fails closed without the selected manifest' {
         { & (Join-Path $repo 'boot/install.ps1') -Base 'http://127.0.0.1:1' } | Should -Throw '*Boot manifest was not injected*'
     }
 }
+
+Describe 'no default boot-asset host' {
+    # Before 2026-10-19 the loader and the WinPE builder defaulted -Base to the maintainer's host, so a forgotten -Base ran someone
+    # else's engine with wipe rights.
+    It 'install.ps1 refuses to run without -Base, before downloading anything' {
+        Mock Test-Path { $true }
+        { & (Join-Path $repo 'boot/install.ps1') } | Should -Throw '*-Base*'
+    }
+    It 'Build-WinPE.ps1 refuses to run without -Base, before deleting its work folder' {
+        $work = Join-Path ([IO.Path]::GetTempPath()) ('m2w-build-' + [guid]::NewGuid())
+        New-Item -ItemType Directory $work | Out-Null
+        try {
+            { & (Join-Path $repo 'build/Build-WinPE.ps1') -Work $work } | Should -Throw '*-Base*'
+            { & (Join-Path $repo 'build/Build-WinPE.ps1') -Work $work -Base 'https://deploy.example.net/windows11' } | Should -Throw '*placeholder*'
+            { & (Join-Path $repo 'build/Build-WinPE.ps1') -Work $work -Base 'ftp://boot.lab.internal/w' } | Should -Throw '*-Base*'
+            Test-Path $work | Should -BeTrue
+        }
+        finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    It 'the static iPXE script refuses to boot until m2w-base is set' {
+        $ipxe = Get-Content (Join-Path $repo 'boot/minute2win.ipxe') -Raw
+        $ipxe | Should -Not -Match '(?m)^\s*(isset .*\|\| )?set (m2w-)?base https?://'
+        $ipxe | Should -Match 'iseq \$\{m2w-base\} @M2W_BASE@ && goto nobase'
+        $ipxe | Should -Match '(?m)^:nobase\r?\n(echo .*\r?\n)+exit 1'
+    }
+    It 'no boot, build, staging or test script names the maintainer host' {
+        $hits = Get-ChildItem (Join-Path $repo 'boot'), (Join-Path $repo 'build'), (Join-Path $repo 'tools'), (Join-Path $repo 'tests/vm'), (Join-Path $repo 'manifests') -File -Recurse |
+            Select-String -SimpleMatch 'spillerstech'
+        @($hits).Count | Should -Be 0 -Because ($hits -join '; ')
+    }
+    It 'the shipped profile has no live image URL or hash' {
+        $m = Get-Content (Join-Path $repo 'manifests/win11-pro.json') -Raw | ConvertFrom-Json
+        $m.image.uri | Should -Match '^https://[^/]+\.invalid/'
+        $m.image.sha256 | Should -Be ('0' * 64)
+    }
+}

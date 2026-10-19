@@ -22,7 +22,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 1280, "height": 900})
     page.goto(BASE + "/")
-    expect(page.locator("select[name=manifest] option")).to_have_count(1)  # win11-pro; manifests/examples/ is not deployable
+    expect(page.locator("select[name=manifest] option")).to_have_count(1)  # the fixture profile in tests/ui/profiles (the shipped one is a placeholder template)
     expect(page.locator("#armed-empty")).to_be_visible()
     expect(page.locator("#armed")).to_be_hidden()
     expect(page.locator("input[name=token]")).to_be_hidden()  # this server has no token

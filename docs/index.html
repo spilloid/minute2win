@@ -172,8 +172,8 @@
           <div class="rail"><h3>Checks before the wipe</h3><p>Manifest, image reachability and size, and disk capacity are checked first. A dead URL or a too-small disk leaves the machine as it was.</p></div>
           <div class="rail"><h3>Picks the disk carefully</h3><p>The lowest-numbered internal disk of at least 64&nbsp;GB. Never USB or a file-backed virtual disk; SD and eMMC only after fixed disks.</p></div>
           <div class="rail"><h3>WinPE and UEFI only</h3><p>The engine refuses to run outside WinPE or on non-UEFI firmware, and shows a ten-second countdown any key can abort.</p></div>
-          <div class="rail caution"><h3>Set the token</h3><p><code>M2W_TOKEN</code> is optional today. Without it, anyone who can reach the server can arm a wipe. Always set it before listening beyond <code>127.0.0.1</code>.</p></div>
-          <div class="rail caution"><h3>Mind the static route</h3><p>The static <code>boot/minute2win.ipxe</code> deploys on every boot that reaches it. Use it only behind a per-boot opt-in; prefer server arms.</p></div>
+          <div class="rail caution"><h3>Set the token</h3><p>Release 0.1.2 listens on every interface by default and the token is optional: without <code>M2W_TOKEN</code>, anyone who can reach the server, or any web page open in your browser, can arm a wipe. Set it, even on <code>127.0.0.1</code>. Fixed in the source for the next release: loopback by default, no network listener without a token, and arming requests from other sites refused.</p></div>
+          <div class="rail caution"><h3>Mind the static route</h3><p>The static <code>boot/minute2win.ipxe</code> deploys on every boot that reaches it. Use it only behind a per-boot opt-in; prefer server arms. In the source it has no default host and boots nothing until you set <code>m2w-base</code>.</p></div>
         </div>
       </div>
     </section>
@@ -192,7 +192,7 @@
         <div class="status-list">
           <article><span class="tag next">Not yet verified</span><h3>Physical hardware and Secure Boot</h3><p>Real firmware PXE, the port 4011 path, Secure Boot and multi-interface hosts. OEM product keys may skip the first-boot script.</p></article>
           <article><span class="tag next">Not in this release</span><h3>Domain, Entra or hybrid join</h3><p>Not implemented; use <code>joinMethod: none</code> and enroll separately. Windows images, WinPE, wimboot and iPXE are not included.</p></article>
-          <article><span class="tag next">Bring your own</span><h3>Boot files and image host</h3><p>The included profile and default URLs point at a restricted maintainer host. Replace them with your own image, hash and boot files.</p></article>
+          <article><span class="tag next">Bring your own</span><h3>Boot files and image host</h3><p>In release 0.1.2 the included profile and default URLs point at a restricted maintainer host; replace them with your own image, hash and boot files. The source has no default host: the server will not arm until <code>-image-base</code> and the profile point at yours.</p></article>
         </div>
       </div>
       <div class="clock-note">
@@ -229,7 +229,7 @@ export M2W_TOKEN='replace-with-a-long-random-token'
             <p class="code-label">Windows PowerShell</p>
 <pre class="code">$env:M2W_TOKEN = 'replace-with-a-long-random-token'
 .\minute2win-server.exe -listen 127.0.0.1:8080</pre>
-            <p>Then open <code>http://localhost:8080</code>. Ready for a real target? <a href="GETTING_STARTED.html">Getting started</a> walks from a deployment profile and boot files to your first armed boot on a disposable VM.</p>
+            <p>Then open <code>http://localhost:8080</code>. Keep <code>-listen</code> explicit: release 0.1.2 otherwise listens on every interface. Ready for a real target? <a href="GETTING_STARTED.html">Getting started</a> walks from a deployment profile and boot files to your first armed boot on a disposable VM.</p>
           </div>
         </div>
       </div>

@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// testProfile is a deployable profile: an image URL on an operator's own host and a (fake) pinned hash.
+const testProfile = `{"schemaVersion":1,"image":{"source":"https","uri":"https://images.lab.internal/w11/install.wim",` +
+	`"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","edition":"Windows 11 Pro"}}`
+
 type fixture struct {
 	s   *Server
 	ts  *httptest.Server
@@ -21,7 +25,7 @@ type fixture struct {
 func newFixture(t *testing.T, token string) *fixture {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "win11-pro.json"), []byte(`{"schemaVersion":1,"image":{"source":"https"}}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "win11-pro.json"), []byte(testProfile), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	f := &fixture{now: time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)}
@@ -38,6 +42,9 @@ func newFixture(t *testing.T, token string) *fixture {
 func (f *fixture) do(t *testing.T, method, path, body, token string) (int, string) {
 	t.Helper()
 	req, _ := http.NewRequest(method, f.ts.URL+path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json") // what curl scripts and the engine send
+	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}

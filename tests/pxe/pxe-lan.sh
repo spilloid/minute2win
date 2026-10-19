@@ -41,12 +41,18 @@ ip link add vh type veth peer name vd; ip link set vd netns $NP; ip link set vh 
 N="nsenter -t $NP -n"
 $N ip addr add 10.77.0.2/24 dev vd; $N ip link set vd up
 $N dnsmasq --no-daemon --port=0 --interface=vd --dhcp-range=10.77.0.100,10.77.0.150,1h --log-dhcp --dhcp-leasefile=/tmp/l > /out/dnsmasq.log 2>&1 &
-mkdir -p /tmp/m && cp /m/win11-pro.json /tmp/m/
+# A deployable-looking profile: arming refuses the shipped placeholder one. Nothing in this run ever fetches the image.
+mkdir -p /tmp/m
+printf '{"schemaVersion":1,"image":{"source":"https","uri":"https://images.lab.internal/w11/install.wim","sha256":"%s","edition":"Windows 11 Pro"}}' \
+  "$(printf 'a%.0s' $(seq 64))" > /tmp/m/win11-pro.json
+# -listen :8080 is reachable from the bridge, so the server requires a token. Machines being imaged never use it; only arming does.
+export M2W_TOKEN=pxe-lan-test
+ARM=(curl -sf -X POST -H "Authorization: Bearer $M2W_TOKEN" -H 'Content-Type: application/json' -d "{\"mac\":\"$MAC\",\"manifest\":\"win11-pro\"}" http://127.0.0.1:8080/api/armed)
 /w/minute2win-server -listen :8080 -manifests /tmp/m -data "" -image-base http://$SRV:8080/no-images -pxe -pxe-dir /w/tftp >> /out/server.log 2>&1 &
 SP=$!
 for i in $(seq 50); do curl -sf http://127.0.0.1:8080/api/state >/dev/null && break; sleep 0.1; done
 kill -0 $SP || { echo "minute2win-server exited at startup" >&2; exit 1; }
-curl -sf -X POST -d "{\"mac\":\"$MAC\",\"manifest\":\"win11-pro\"}" http://127.0.0.1:8080/api/armed > /dev/null
+"${ARM[@]}" > /dev/null
 FW=""
 if [ "$MODE" = uefi ]; then cp /fw/OVMF_VARS.fd /tmp/vars.fd; FW="-drive if=pflash,format=raw,readonly=on,file=/fw/OVMF_CODE.fd -drive if=pflash,format=raw,file=/tmp/vars.fd"; fi
 boot() {
@@ -72,14 +78,13 @@ boot() {
 }
 boot 1; curl -sf http://127.0.0.1:8080/api/state > /out/state-1.json
 boot 2
-curl -sf -X POST -d "{\"mac\":\"$MAC\",\"manifest\":\"win11-pro\"}" http://127.0.0.1:8080/api/armed > /dev/null
+"${ARM[@]}" > /dev/null
 boot 3; curl -sf http://127.0.0.1:8080/api/state > /out/state-3.json
 kill -0 $SP || { echo "minute2win-server died during the run" >&2; exit 1; }
 EOF
 chmod +x "$W/run.sh"
 FW=(); [ -d /usr/share/edk2/ovmf ] && FW=(-v /usr/share/edk2/ovmf:/fw:ro)
-if ! podman run --rm --privileged --device /dev/kvm --security-opt label=disable -e MODE="$MODE" -v "$W":/w -v "$W/out":/out "${FW[@]}" \
-  -v "$ROOT/manifests":/m:ro "$IMG" /w/run.sh; then
+if ! podman run --rm --privileged --device /dev/kvm --security-opt label=disable -e MODE="$MODE" -v "$W":/w -v "$W/out":/out "${FW[@]}" "$IMG" /w/run.sh; then
   echo "FAIL: the container run failed"; cat "$W/out/server.log" 2>/dev/null || true; exit 1
 fi
 grep -a 'pxe: \|tftp: \|== boot' "$W/out/server.log" || true

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "deployment": { "name": "UI test fixture (nothing is downloaded)" },
+  "image": {
+    "source": "https",
+    "uri": "https://images.lab.internal/windows11/install.wim",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "edition": "Windows 11 Pro"
+  },
+  "disk": { "minSizeGB": 64, "stagingGB": 12 },
+  "oobe": { "adminUser": null },
+  "tenant": { "id": "none", "joinMethod": "none" },
+  "guard": { "countdownSeconds": 10 }
+}

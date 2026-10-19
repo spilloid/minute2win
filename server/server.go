@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -194,21 +197,65 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /ui/disarm", s.uiDisarm)
 	mux.HandleFunc("GET /api/manifests", s.listManifests)
 	mux.HandleFunc("GET /api/state", s.getState)
-	mux.HandleFunc("POST /api/armed", s.auth(s.arm))
+	mux.HandleFunc("POST /api/armed", s.auth(requireJSON(s.arm)))
 	mux.HandleFunc("DELETE /api/armed/{mac}", s.auth(s.disarm))
 	mux.HandleFunc("GET /boot/{mac}", s.boot)
 	mux.HandleFunc("GET /manifest/{mac}", s.manifest)
-	mux.HandleFunc("POST /api/report", s.report)
-	return mux
+	mux.HandleFunc("POST /api/report", requireJSON(s.report))
+	// Every state-changing route (arm, disarm, the UI forms, reports) refuses cross-origin browser requests, so a page on another
+	// site cannot arm a wipe. Requests without browser headers (curl, scripts, the WinPE engine) are not affected.
+	cop := http.NewCrossOriginProtection()
+	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "cross-origin request refused: changes are only accepted from this server's own page or from non-browser clients", http.StatusForbidden)
+	}))
+	return cop.Handler(mux)
+}
+
+// requireJSON: JSON mutations must say so. A browser cannot send application/json to another site without a CORS preflight, which
+// this server never grants, so this also stops browsers too old to send Origin or Sec-Fetch-Site.
+func requireJSON(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+			http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+			return
+		}
+		h(w, r)
+	}
+}
+
+// directHost reports whether a request is addressed to an IP address or localhost. With no token, DNS rebinding is how a web page
+// could still reach this server as "same-origin", and that needs a host name the attacker controls; an address or localhost
+// cannot be rebound.
+func directHost(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.Trim(host, "[]"), ".")
+	return strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil
+}
+
+const rebindRefusal = "without M2W_TOKEN, arming and disarming are only accepted at an IP address or localhost (this blocks DNS-rebinding " +
+	"attacks from web pages). Open the console by address, such as http://127.0.0.1:8080/, or set M2W_TOKEN"
+
+// operatorRefusal says why an arm or disarm may not go ahead, or "" if it may. got is the token the request carries.
+func (s *Server) operatorRefusal(r *http.Request, got string) (msg string, status int) {
+	if s.Token == "" {
+		if !directHost(r.Host) {
+			return rebindRefusal, http.StatusForbidden
+		}
+		return "", 0
+	}
+	if !tokenEqual(got, s.Token) {
+		return "token required", http.StatusUnauthorized
+	}
+	return "", 0
 }
 
 func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.Token != "" {
-			if !tokenEqual(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), s.Token) {
-				http.Error(w, "token required", http.StatusUnauthorized)
-				return
-			}
+		if msg, code := s.operatorRefusal(r, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")); msg != "" {
+			http.Error(w, msg, code)
+			return
 		}
 		h(w, r)
 	}
@@ -291,8 +338,11 @@ func (s *Server) doArm(rawMAC, manifest string) (*Armed, error) {
 	if !nameRe.MatchString(manifest) {
 		return nil, errBadManifest
 	}
-	if _, err := os.Stat(filepath.Join(s.ManifestDir, manifest+".json")); err != nil {
-		return nil, errBadManifest
+	if s.ImageBase == "" {
+		return nil, errNoImageBase
+	}
+	if err := checkProfile(filepath.Join(s.ManifestDir, manifest+".json"), manifest); err != nil {
+		return nil, err
 	}
 	now := s.Now()
 	a := &Armed{MAC: mac, Manifest: manifest, ArmedAt: now, Expires: now.Add(s.ArmTTL)}
@@ -457,4 +507,51 @@ func clip(s string, n int) string {
 		return s[:n]
 	}
 	return s
+}
+
+var errNoImageBase = writeErr("this server has no -image-base, so it has no boot files to send. Restart it with -image-base set to the URL " +
+	"of your own folder holding wimboot, BCD, boot.sdi and boot.wim")
+
+var sha256Re = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
+
+// placeholderHost: the documentation's example hosts (RFC 2606/6761 reserved names), which a profile or flag copied from the
+// docs still carries until someone replaces it.
+func placeholderHost(h string) bool {
+	h = strings.TrimSuffix(strings.ToLower(h), ".")
+	for _, d := range []string{"example.com", "example.net", "example.org", "example", "invalid"} {
+		if h == d || strings.HasSuffix(h, "."+d) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkProfile refuses, at arm time, a profile that could not deploy: not JSON (a BOM included), or an image URL or hash that is
+// missing or still a placeholder. The engine checks the whole manifest again in WinPE; this only stops an arm that is bound to
+// fail after it has been consumed, or that would fetch an image from a host the operator never chose.
+func checkProfile(path, name string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return errBadManifest
+	}
+	var p struct {
+		Image struct {
+			URI    string `json:"uri"`
+			SHA256 string `json:"sha256"`
+		} `json:"image"`
+	}
+	if err := json.Unmarshal(b, &p); err != nil {
+		return fmt.Errorf("profile %s is not valid JSON (%v); save it as UTF-8 without a byte-order mark", name, err)
+	}
+	u, err := url.Parse(p.Image.URI)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		return fmt.Errorf("profile %s: image.uri must be the https:// URL of your own Windows image", name)
+	}
+	if placeholderHost(u.Hostname()) {
+		return fmt.Errorf("profile %s: image.uri still points at the placeholder host %s; set your own image URL and its SHA-256", name, u.Hostname())
+	}
+	if !sha256Re.MatchString(p.Image.SHA256) || strings.Trim(p.Image.SHA256, "0") == "" {
+		return fmt.Errorf("profile %s: image.sha256 must be the SHA-256 of your image (64 hex digits, not a placeholder)", name)
+	}
+	return nil
 }

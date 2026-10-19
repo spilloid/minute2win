@@ -1,9 +1,10 @@
 // minute2win-server: arm machines for a zero-touch wipe, hand iPXE their boot script, and show deployments live.
 //
-//	minute2win-server -listen :8080 -manifests ../manifests -data ./data
+//	M2W_TOKEN=... minute2win-server -listen :8080 -manifests ../manifests -data ./data -image-base https://<your host>/windows11
 //
 // Targets' iPXE (dnsmasq dhcp-boot, or a USB boot drive's autoexec) runs: chain http://<this>:8080/boot/${net0/mac}
-// Set M2W_TOKEN to require a token for arming and disarming.
+// It listens on loopback by default. To deploy, set M2W_TOKEN (required to arm and disarm when -listen is reachable from the network)
+// and -image-base (the folder holding your boot files).
 //
 // With -pxe -pxe-dir <folder of iPXE binaries> it also answers PXE itself (proxyDHCP + read-only TFTP), for ARMED MACs only,
 // so no dnsmasq is needed. See README "Built-in PXE".
@@ -15,6 +16,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -118,7 +120,7 @@ func pxeHTTPTarget(bound net.Addr, override net.IP, local []net.IP) (port int, a
 		case ip4 == nil:
 			return 0, nil, "", fmt.Errorf("pxe: HTTP is bound to %s, an IPv6 address PXE (IPv4) clients cannot use; bind -listen to an IPv4 address or to all addresses", tcp.IP)
 		case ip4.IsLoopback():
-			return 0, nil, "", fmt.Errorf("pxe: HTTP is bound to loopback %s, which PXE clients cannot reach; bind -listen to a LAN address or to all addresses", ip4)
+			return 0, nil, "", fmt.Errorf("pxe: HTTP is bound to loopback %s, which PXE clients cannot reach; bind -listen to a LAN address or to all addresses (-listen defaults to 127.0.0.1:8080; for PXE, set M2W_TOKEN and use -listen :8080)", ip4)
 		case override != nil && !override.Equal(ip4):
 			return 0, nil, "", fmt.Errorf("pxe: -pxe-ip %s, but HTTP only listens on %s, so the boot URL would not work; make them the same or bind -listen to all addresses", override, ip4)
 		}
@@ -135,11 +137,69 @@ func pxeHTTPTarget(bound net.Addr, override net.IP, local []net.IP) (port int, a
 	return tcp.Port, nil, "", nil
 }
 
+// listenIsLoopback reports whether -listen only accepts connections from this machine: a loopback address, or a name (localhost)
+// that resolves only to loopback addresses. An empty host (":8080") means every interface.
+func listenIsLoopback(listen string) bool {
+	host, _, err := net.SplitHostPort(listen)
+	if err != nil || host == "" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return false
+	}
+	for _, ip := range ips {
+		if !ip.IsLoopback() {
+			return false
+		}
+	}
+	return true
+}
+
+// checkListen refuses a server that anyone on the network could use to arm a disk wipe: a non-loopback listener needs M2W_TOKEN,
+// or an explicit -insecure-no-token. Machines being imaged never need the token (boot scripts, manifests and reports don't use it).
+func checkListen(listen, token string, insecure bool) (warning string, err error) {
+	switch {
+	case listenIsLoopback(listen):
+		if token == "" {
+			return "listening on loopback only: the console works on this machine, but machines being imaged cannot reach it. " +
+				"To deploy, set M2W_TOKEN and start with -listen :8080 (or a LAN address)", nil
+		}
+		return "", nil
+	case token != "":
+		return "", nil
+	case insecure:
+		return "WARNING: -insecure-no-token: M2W_TOKEN is not set and -listen " + listen + " is reachable from the network, so anyone " +
+			"who can reach this port can arm a machine for a disk wipe", nil
+	}
+	return "", fmt.Errorf(`refusing to start: -listen %s accepts connections from other machines and M2W_TOKEN is not set, so anyone who can reach this port could arm a machine for a disk wipe. Choose one:
+  - set M2W_TOKEN to a long random secret and start again (Linux: export M2W_TOKEN='...'; PowerShell: $env:M2W_TOKEN = '...').
+    Only arming and disarming use it; machines being imaged never need it.
+  - preview on this machine only: -listen 127.0.0.1:8080 (the default; machines being imaged cannot reach it).
+  - on an isolated lab network where anyone who can reach this port may wipe machines: add -insecure-no-token`, listen)
+}
+
+// checkImageBase validates -image-base: the folder iPXE fetches wimboot, BCD, boot.sdi and boot.wim from.
+func checkImageBase(base string) error {
+	u, err := url.Parse(base)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return fmt.Errorf("-image-base %q must be the http:// or https:// URL of your folder holding wimboot, BCD, boot.sdi and boot.wim", base)
+	}
+	if placeholderHost(u.Hostname()) {
+		return fmt.Errorf("-image-base %s uses the documentation's placeholder host %s; use your own boot-asset host", base, u.Hostname())
+	}
+	return nil
+}
+
 func main() {
-	listen := flag.String("listen", ":8080", "address to serve on")
+	listen := flag.String("listen", "127.0.0.1:8080", "address to serve on; loopback by default. Machines being imaged must reach it, so for deployment use :8080 or a LAN address, with M2W_TOKEN set")
 	manifests := flag.String("manifests", "", "folder of deployment manifests (*.json); default: ./manifests, next to the executable, or ../manifests")
 	data := flag.String("data", "data", "folder for state.json (\"\" keeps state in memory)")
-	base := flag.String("image-base", "https://boot.spillerstech.us/windows11", "URL holding wimboot, BCD, boot.sdi and boot.wim")
+	base := flag.String("image-base", "", "URL of your folder holding wimboot, BCD, boot.sdi and boot.wim (required to arm; there is no default)")
+	insecure := flag.Bool("insecure-no-token", false, "allow a network-reachable -listen without M2W_TOKEN: anyone who can reach the port can arm a disk wipe")
 	ttl := flag.Duration("arm-ttl", 2*time.Hour, "an arm that no machine boots within this long expires")
 	open := flag.Bool("open", runtime.GOOS == "windows", "open the web UI in a browser on start (default on Windows, so double-clicking works)")
 	pxe := flag.Bool("pxe", false, "also answer PXE: proxyDHCP (UDP 67, 4011) and read-only TFTP (UDP 69), for armed MACs only")
@@ -155,7 +215,24 @@ func main() {
 	flag.Parse()
 	*manifests = findManifests(*manifests)
 
-	s := &Server{ManifestDir: *manifests, ImageBase: *base, Token: os.Getenv("M2W_TOKEN"), ArmTTL: *ttl, ReportTTL: 3 * time.Hour, Now: time.Now}
+	token := os.Getenv("M2W_TOKEN")
+	warning, err := checkListen(*listen, token, *insecure)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if warning != "" {
+		log.Print(warning)
+	}
+	if *base != "" {
+		if err := checkImageBase(*base); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Print("no -image-base: the console works, but nothing can be armed until the server is restarted with " +
+			"-image-base https://<your boot-asset host>/<folder> (the folder holding wimboot, BCD, boot.sdi and boot.wim)")
+	}
+
+	s := &Server{ManifestDir: *manifests, ImageBase: *base, Token: token, ArmTTL: *ttl, ReportTTL: 3 * time.Hour, Now: time.Now}
 	if *data != "" {
 		if err := os.MkdirAll(*data, 0o700); err != nil {
 			log.Fatal(err)
@@ -165,10 +242,11 @@ func main() {
 	if err := s.Load(); err != nil {
 		log.Fatal(err)
 	}
-	if s.Token == "" {
-		log.Print("warning: M2W_TOKEN is not set; anyone who can reach this server can arm a machine for a wipe")
+	images := *base
+	if images == "" {
+		images = "(none: arming refused)"
 	}
-	log.Printf("minute2win-server on %s, manifests %s, images %s", *listen, *manifests, *base)
+	log.Printf("minute2win-server on %s, manifests %s, images %s", *listen, *manifests, images)
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
 		log.Fatal(err)
