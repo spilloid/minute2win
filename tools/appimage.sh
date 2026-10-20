@@ -2,11 +2,12 @@
 # Build the minute2win-server AppImage (x86_64): tools/appimage.sh <version> <linux-amd64 server binary> <output file>
 # No appimagetool and no FUSE needed: an AppImage is the type 2 runtime followed by a squashfs of the AppDir. The runtime is
 # the one prebuilt binary we fetch, and it is pinned by SHA-256 (a changed upstream file fails the build instead of shipping).
-# To move to a newer runtime: download it, read it, and update RUNTIME_SHA256.
+# It comes from a dated upstream release, not "continuous": upstream rebuilds "continuous" in place, which broke the build
+# whenever it did. To move to a newer runtime: pick a dated release, download it, read it, and update both lines.
 set -euo pipefail
 VERSION="${1:?version}"; BIN="${2:?server binary}"; OUT="${3:?output file}"
-RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64"
-RUNTIME_SHA256="156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074"
+RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64"
+RUNTIME_SHA256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d"
 cd "$(dirname "$0")/.."
 BIN="$(realpath "$BIN")"; OUT="$(realpath -m "$OUT")"
 W="$(mktemp -d)"; trap 'rm -rf "$W"' EXIT
