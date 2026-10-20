@@ -38,7 +38,9 @@ it works offline. `/api/*` stays as JSON for scripts.
   expired, or dropped at restart), and is not shown in `/api/state`, the console or the state file. `/boot` also refuses with 403
   any request whose `Sec-Fetch-Site` or `Origin` shows another site. What remains: a DNS-rebinding page (one that points its own
   host name at this server, so the browser treats the response as same-origin) and anyone who can read the network traffic can
-  learn the ticket and use up an arm. Neither can create one, because arming needs a POST and, with a token set, the token. JSON
+  learn the ticket and use up an arm. A ticket alone cannot create an arm: arming needs a POST and, with a token set, the token.
+  But the server speaks plain HTTP, so anyone who can read the operator's traffic can also capture `M2W_TOKEN` itself and then
+  arm and disarm machines. Keep the console on a trusted network segment, or put it behind a TLS reverse proxy. JSON
   mutations (`POST /api/armed`, `POST /api/report`) also require `Content-Type: application/json` (415 otherwise). Requests
   without browser headers, such as curl, scripts and the WinPE engine, are unaffected. Without a token, arming and disarming are
   also refused when the request is addressed to a host name other than `localhost` (a DNS-rebinding guard): open the console by IP
