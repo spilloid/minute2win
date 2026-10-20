@@ -68,7 +68,7 @@ Choose one boot route:
 
 ## 6. Arm once and observe
 
-Confirm the VM's MAC and that its disk is disposable. In the console enter the token, select your profile, and arm that MAC. Boot it through iPXE. Requesting `/boot/<mac>` consumes the arm; the deployment appears on the board.
+Confirm the VM's MAC and that its disk is disposable. In the console enter the token, select your profile, and arm that MAC. Boot it through iPXE. iPXE requests `/boot/<mac>` and follows the one-time URL it is given, which consumes the arm; the deployment appears on the board.
 
 If the boot fails after consumption, diagnose it before re-arming. Disarming cannot cancel an already started deployment. In WinPE, any key during the countdown aborts; a zero countdown removes that opportunity.
 

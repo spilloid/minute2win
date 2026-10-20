@@ -39,4 +39,19 @@ done
 mkdir "$W/bin"; printf '#!/usr/bin/env bash\nexit 0\n' > "$W/bin/sed"; chmod +x "$W/bin/sed"   # a sed that writes nothing
 if PATH="$W/bin:$PATH" "$ROOT/tools/stage.sh" "$W/out" 'https://other.lab.internal/w' >/dev/null 2>&1; then fail "unwritten base accepted"; fi
 [ "$(cd "$W/out" && find . -type f -exec cksum {} + | LC_ALL=C sort)" = "$before" ] || fail "a failed staging changed the earlier output"
+
+# 4. permissions (Unix): the staged files are served by a web server that may run as another user, so each must be readable by
+# others; minute2win.ipxe, built in a mktemp file (0600), must come out 0644. Skipped where the filesystem has no Unix modes
+# (Git Bash on NTFS reads a chmod 600 file back as 644), and said so.
+mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+probe="$W/probe"; : > "$probe"; chmod 600 "$probe"
+if [ "$(mode "$probe")" != 600 ]; then
+  echo "stage.sh: permission checks SKIPPED (this filesystem has no Unix modes: chmod 600 reads back as $(mode "$probe"))"
+else
+  rm -rf "$W/out"; (umask 022; "$ROOT/tools/stage.sh" "$W/out" 'https://deploy.lab.internal/windows11' >/dev/null)
+  [ "$(mode "$W/out/windows11/minute2win.ipxe")" = 644 ] || fail "minute2win.ipxe is $(mode "$W/out/windows11/minute2win.ipxe"), want 644"
+  while IFS= read -r f; do
+    m="$(mode "$f")"; [ $(( 8#$m & 4 )) -ne 0 ] || fail "$f is $m: not readable by others"
+  done < <(find "$W/out" -type f)
+fi
 echo "stage.sh: all cases pass"

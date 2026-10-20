@@ -64,10 +64,26 @@ func (f *fixture) arm(t *testing.T, mac string) {
 	}
 }
 
+// boot does what iPXE does with `chain http://<server>/boot/${net0/mac}`: fetch the script with no browser headers and, if it
+// chains the one-time URL, follow that. It returns the last response.
+func (f *fixture) boot(t *testing.T, mac string) (int, string) {
+	t.Helper()
+	code, body := f.do(t, "GET", "/boot/"+mac, "", "")
+	for _, line := range strings.Split(body, "\n") {
+		if u, ok := strings.CutPrefix(line, "chain "); ok {
+			if !strings.HasPrefix(u, f.ts.URL+"/boot/") {
+				t.Fatalf("/boot chains somewhere else: %q", u)
+			}
+			return f.do(t, "GET", strings.TrimPrefix(u, f.ts.URL), "", "")
+		}
+	}
+	return code, body
+}
+
 // bootAndKey simulates the target: network-boot (consuming the arm), then fetch the manifest to learn the report key.
 func (f *fixture) bootAndKey(t *testing.T, mac string) string {
 	t.Helper()
-	f.do(t, "GET", "/boot/"+mac, "", "")
+	f.boot(t, mac)
 	_, body := f.do(t, "GET", "/manifest/"+mac, "", "")
 	var m map[string]any
 	if err := json.Unmarshal([]byte(body), &m); err != nil {
@@ -78,7 +94,7 @@ func (f *fixture) bootAndKey(t *testing.T, mac string) string {
 
 func TestUnarmedMachineBootsItsDisk(t *testing.T) {
 	f := newFixture(t, "")
-	_, body := f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "")
+	_, body := f.boot(t, "52:54:00:12:34:56")
 	if !strings.Contains(body, "exit 1") || strings.Contains(body, "wimboot") {
 		t.Fatalf("unarmed boot script should exit, got:\n%s", body)
 	}
@@ -87,13 +103,13 @@ func TestUnarmedMachineBootsItsDisk(t *testing.T) {
 func TestOneArmIsOneWipe(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52-54-00-AB-CD-EF") // dashes and capitals normalise
-	_, first := f.do(t, "GET", "/boot/52:54:00:ab:cd:ef", "", "")
+	_, first := f.boot(t, "52:54:00:ab:cd:ef")
 	for _, want := range []string{"kernel https://img.example/w11/wimboot", "initrd --name manifest.json " + f.ts.URL + "/manifest/52:54:00:ab:cd:ef manifest.json", "initrd https://img.example/w11/boot.wim boot.wim", "boot\n"} {
 		if !strings.Contains(first, want) {
 			t.Fatalf("armed boot script missing %q:\n%s", want, first)
 		}
 	}
-	_, second := f.do(t, "GET", "/boot/52:54:00:ab:cd:ef", "", "")
+	_, second := f.boot(t, "52:54:00:ab:cd:ef")
 	if !strings.Contains(second, "exit 1") {
 		t.Fatalf("second boot after the deploy must boot the disk, got:\n%s", second)
 	}
@@ -103,7 +119,7 @@ func TestArmExpires(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
 	f.now = f.now.Add(61 * time.Minute)
-	if _, body := f.do(t, "GET", "/boot/52:54:00:12:34:56", "", ""); !strings.Contains(body, "exit 1") {
+	if _, body := f.boot(t, "52:54:00:12:34:56"); !strings.Contains(body, "exit 1") {
 		t.Fatalf("expired arm still deploys:\n%s", body)
 	}
 }
@@ -114,7 +130,7 @@ func TestDisarm(t *testing.T) {
 	if code, _ := f.do(t, "DELETE", "/api/armed/52:54:00:12:34:56", "", ""); code != 204 {
 		t.Fatal(code)
 	}
-	if _, body := f.do(t, "GET", "/boot/52:54:00:12:34:56", "", ""); !strings.Contains(body, "exit 1") {
+	if _, body := f.boot(t, "52:54:00:12:34:56"); !strings.Contains(body, "exit 1") {
 		t.Fatal("disarmed machine still deploys")
 	}
 }
@@ -148,7 +164,7 @@ func TestTokenGuardsArming(t *testing.T) {
 func TestManifestCarriesReportURL(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
-	f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "")
+	f.boot(t, "52:54:00:12:34:56")
 	_, body := f.do(t, "GET", "/manifest/52:54:00:12:34:56", "", "")
 	var m map[string]any
 	if err := json.Unmarshal([]byte(body), &m); err != nil {
@@ -206,7 +222,7 @@ func TestSaveFailureFailsClosed(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
 	f.s.StatePath = filepath.Join(t.TempDir(), "missing-dir", "state.json") // writes now fail
-	_, body := f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "")
+	_, body := f.boot(t, "52:54:00:12:34:56")
 	if strings.Contains(body, "wimboot") || !strings.Contains(body, "exit 1") {
 		t.Fatalf("deployed although the consumed arm could not be saved:\n%s", body)
 	}
@@ -221,7 +237,7 @@ func TestSaveFailureFailsClosed(t *testing.T) {
 func TestManifestWindowCloses(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
-	f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "")
+	f.boot(t, "52:54:00:12:34:56")
 	f.now = f.now.Add(11 * time.Minute)
 	if code, _ := f.do(t, "GET", "/manifest/52:54:00:12:34:56", "", ""); code != 404 {
 		t.Fatalf("manifest served after its window: %d", code)
@@ -231,7 +247,7 @@ func TestManifestWindowCloses(t *testing.T) {
 func TestEmptyKeyNeverAuthenticates(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
-	f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "")
+	f.boot(t, "52:54:00:12:34:56")
 	f.s.st.Deployments["52:54:00:12:34:56"].Key = "" // e.g. a record from an older state file
 	if code, _ := f.do(t, "POST", "/api/report", `{"key":"","macs":["52:54:00:12:34:56"],"phase":"done","status":"done"}`, ""); code == 204 {
 		t.Fatal("empty key accepted")
@@ -249,7 +265,7 @@ func TestFailedRestoreDegradesTheServer(t *testing.T) {
 	if !f.s.degraded {
 		t.Fatal("not degraded")
 	}
-	if _, body := f.do(t, "GET", "/boot/52:54:00:12:34:56", "", ""); strings.Contains(body, "wimboot") {
+	if _, body := f.boot(t, "52:54:00:12:34:56"); strings.Contains(body, "wimboot") {
 		t.Fatalf("a degraded server deployed:\n%s", body)
 	}
 	if _, st := f.do(t, "GET", "/api/state", "", ""); !strings.Contains(st, `"degraded":true`) {
@@ -260,7 +276,7 @@ func TestFailedRestoreDegradesTheServer(t *testing.T) {
 func TestDisarmAfterBootSaysSo(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
-	f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "")
+	f.boot(t, "52:54:00:12:34:56")
 	if code, body := f.do(t, "DELETE", "/api/armed/52:54:00:12:34:56", "", ""); code != 404 || !strings.Contains(body, "not cancelled") {
 		t.Fatalf("disarm after boot: %d %s", code, body)
 	}
@@ -269,7 +285,7 @@ func TestDisarmAfterBootSaysSo(t *testing.T) {
 func TestConsumedArmStaysConsumedAfterRestart(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
-	f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "")
+	f.boot(t, "52:54:00:12:34:56")
 	s2 := &Server{StatePath: f.s.StatePath, Now: f.s.Now}
 	if err := s2.Load(); err != nil {
 		t.Fatal(err)
@@ -283,7 +299,7 @@ func TestArmsDoNotSurviveARestartButDeploymentsDo(t *testing.T) {
 	f := newFixture(t, "")
 	f.arm(t, "52:54:00:12:34:56")
 	f.arm(t, "52:54:00:00:00:09")
-	f.do(t, "GET", "/boot/52:54:00:12:34:56", "", "") // this one boots: a deployment record exists
+	f.boot(t, "52:54:00:12:34:56") // this one boots: a deployment record exists
 	s2 := &Server{StatePath: f.s.StatePath, Now: f.s.Now}
 	if err := s2.Load(); err != nil {
 		t.Fatal(err)

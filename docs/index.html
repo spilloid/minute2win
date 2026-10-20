@@ -53,7 +53,7 @@
         <div class="runsheet-head"><span>One deployment</span><span>Arm &rarr; installed disk</span></div>
         <ol>
           <li><span class="n">01</span><div><strong>Arm a MAC with a profile</strong><span class="d">In the console or the JSON API. Unused arms expire.</span></div></li>
-          <li><span class="n">02</span><div><strong>Network boot, arm consumed</strong><span class="d">iPXE asks the server for its script. That request uses up the arm, so the next boot is a normal one.</span></div></li>
+          <li><span class="n">02</span><div><strong>Network boot, arm consumed</strong><span class="d">iPXE asks the server for its script and follows a one-time link to it. That uses up the arm, so the next boot is a normal one.</span></div></li>
           <li><span class="n">03</span><div><strong>Check before the wipe</strong><span class="d">Valid manifest, reachable image, enough room, an eligible internal disk. If any of these fails, the disk is untouched.</span></div></li>
           <li class="guard"><span class="n">04</span><div><strong>Ten-second abort countdown</strong><span class="d">Shown on screen. Any key stops it. Then the wipe begins.</span></div></li>
           <li><span class="n">05</span><div><strong>Partition, download, verify, apply</strong><span class="d">GPT layout, SHA-256 check of the image, DISM apply and bcdboot. The hash can only be checked after the download, so a wrong hash stops here, on an erased disk.</span></div></li>

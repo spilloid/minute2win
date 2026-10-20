@@ -32,6 +32,10 @@ type Armed struct {
 	Manifest string    `json:"manifest"`
 	ArmedAt  time.Time `json:"armedAt"`
 	Expires  time.Time `json:"expires"`
+	// Ticket: the secret part of the one URL that consumes this arm (/boot/{mac}/{ticket}). Only GET /boot/{mac}'s response
+	// carries it; never shown in /api/state or the console, never written to the state file. Random per arm, so it dies with
+	// the arm (consumed, disarmed, expired, or dropped at restart).
+	Ticket string `json:"-"`
 }
 
 // Deployment: one consumed arm, updated by the engine's reports.
@@ -200,11 +204,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/armed", s.auth(requireJSON(s.arm)))
 	mux.HandleFunc("DELETE /api/armed/{mac}", s.auth(s.disarm))
 	mux.HandleFunc("GET /boot/{mac}", s.boot)
+	mux.HandleFunc("GET /boot/{mac}/{ticket}", s.boot)
 	mux.HandleFunc("GET /manifest/{mac}", s.manifest)
 	mux.HandleFunc("POST /api/report", requireJSON(s.report))
 	// Every state-changing route (arm, disarm, the UI forms, reports) refuses cross-origin browser requests, so a page on another
-	// site cannot arm a wipe. Requests without browser headers (curl, scripts, the WinPE engine) are not affected. GET /boot/{mac},
-	// which consumes an arm, is not covered by this (it lets GET through) and checks for itself (crossSiteBrowser).
+	// site cannot arm a wipe. Requests without browser headers (curl, scripts, the WinPE engine) are not affected. That protection
+	// lets every GET through, so booting is split in two (see boot): GET /boot/{mac} changes nothing, and the arm is consumed only
+	// by the one-time URL in its response, which a page on another site cannot read.
 	cop := http.NewCrossOriginProtection()
 	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-origin request refused: changes are only accepted from this server's own page or from non-browser clients", http.StatusForbidden)
@@ -212,10 +218,9 @@ func (s *Server) Handler() http.Handler {
 	return cop.Handler(mux)
 }
 
-// crossSiteBrowser reports whether a request comes from a browser on behalf of a page of another origin. GET /boot/{mac} consumes
-// an arm, but CrossOriginProtection lets every GET through, so without this an <img src=".../boot/MAC"> on any page the operator
-// opens would use up the arm. iPXE sends neither header, nor does curl. A browser too old to send Sec-Fetch-Site (Chrome before 76,
-// Firefox before 90, Safari before 16.4) sends no Origin on an image load either, so it is not stopped here; see SERVER.md.
+// crossSiteBrowser reports whether a request visibly comes from a browser on behalf of a page of another origin. It is only an
+// early refusal on /boot: browsers send no Sec-Fetch-Site to a plain-http LAN address and no Origin on an image load, so a
+// cross-site request often carries neither. What keeps such a request from consuming an arm is the one-time ticket (see boot).
 func crossSiteBrowser(r *http.Request) bool {
 	switch r.Header.Get("Sec-Fetch-Site") {
 	case "", "same-origin", "none": // none: the operator typed the address or used a bookmark
@@ -363,7 +368,9 @@ func (s *Server) doArm(rawMAC, manifest string) (*Armed, error) {
 		return nil, err
 	}
 	now := s.Now()
-	a := &Armed{MAC: mac, Manifest: manifest, ArmedAt: now, Expires: now.Add(s.ArmTTL)}
+	ticket := make([]byte, 16)
+	_, _ = rand.Read(ticket)
+	a := &Armed{MAC: mac, Manifest: manifest, ArmedAt: now, Expires: now.Add(s.ArmTTL), Ticket: hex.EncodeToString(ticket)}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.degraded {
@@ -407,8 +414,15 @@ func origin(r *http.Request) string {
 }
 
 // iPXE: chain http://<server>/boot/${net0/mac}. Not armed (or expired): exit 1, so the firmware boots its next device, the disk.
+//
+// Booting takes two requests, because any web page can make a browser send a plain GET here (an <img>, with no Origin and, to a
+// plain-http LAN address, no Sec-Fetch-Site: indistinguishable from iPXE). GET /boot/{mac} changes nothing: for an armed MAC it
+// answers with a script that chains /boot/{mac}/{ticket}, and only that URL consumes the arm. The ticket is random per arm and
+// appears nowhere else, and a page on another site cannot read the first response (no CORS), so it cannot reach the second.
+// iPXE simply follows the chain.
 func (s *Server) boot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "no-store")
 	// Never echo the request into the script: the path is attacker-controlled and iPXE runs every line.
 	const notArmed = "#!ipxe\necho minute2win: not armed, booting the local disk\nexit 1\n"
 	if crossSiteBrowser(r) {
@@ -425,6 +439,20 @@ func (s *Server) boot(w http.ResponseWriter, r *http.Request) {
 	s.expire()
 	a := s.st.Armed[mac]
 	if a == nil || s.degraded {
+		s.mu.Unlock()
+		fmt.Fprint(w, notArmed)
+		return
+	}
+	ticket := r.PathValue("ticket")
+	if ticket == "" {
+		// Step 1: nothing changes. mac is normalized and the ticket is our own hex, so neither can inject a script line.
+		s.mu.Unlock()
+		fmt.Fprintf(w, "#!ipxe\necho minute2win: %s is armed, fetching its one-time deployment script\nchain %s/boot/%s/%s\n",
+			mac, origin(r), mac, a.Ticket)
+		return
+	}
+	if !tokenEqual(ticket, a.Ticket) {
+		// A wrong or stale ticket (a reused URL, or one from an earlier arm) is treated as not armed and leaves the arm alone.
 		s.mu.Unlock()
 		fmt.Fprint(w, notArmed)
 		return

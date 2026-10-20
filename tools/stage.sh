@@ -24,6 +24,9 @@ fi
 rm -rf "$OUT"; mkdir -p "$OUT/minute2win/manifests"
 cp boot/install.ps1 "$OUT/"
 cp "$IPXE" "$OUT/minute2win.ipxe"
+# mktemp makes its file 0600 and cp keeps that mode; the web server serving this folder may run as another user, so the staged
+# script must be world-readable like everything else here.
+chmod 0644 "$OUT/minute2win.ipxe"
 cp VERSION engine/Minute2Win.psm1 engine/Start-Minute2Win.ps1 bootstrap/Start-FirstBoot.ps1 templates/unattend-oobe.xml "$OUT/minute2win/"
 cp manifests/win11-pro.json "$OUT/minute2win/manifests/"
 find "$OUT" -type f | sort

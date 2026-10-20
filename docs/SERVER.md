@@ -9,8 +9,9 @@ title: Server reference
 arming and disarming, with no app JavaScript. htmx is vendored, not loaded from a CDN, so
 it works offline. `/api/*` stays as JSON for scripts.
 
-- **Arm** a MAC with a profile. The target's iPXE runs `chain http://<server>:8080/boot/${net0/mac}`. An armed MAC gets the
-  minute2win boot script and is **disarmed in the same moment**: one arm is one wipe, so a machine that network-boots first does not
+- **Arm** a MAC with a profile. The target's iPXE runs `chain http://<server>:8080/boot/${net0/mac}`. For an armed MAC that
+  request changes nothing: it answers with a script that chains a one-time URL, `/boot/{mac}/{ticket}`, and iPXE follows it. That
+  second request gets the minute2win boot script and **disarms the MAC in the same moment**: one arm is one wipe, so a machine that network-boots first does not
   wipe itself again after the deploy reboots it. An unarmed MAC gets `exit 1` and the firmware boots the local disk. Arms that nobody
   boots expire (`-arm-ttl`, default 2h), and **arms do not survive a restart of the server**: re-arm what you still want.
 - The server serves the armed manifest with `report.url` set to itself. The engine then posts every phase and lap time, and the
@@ -28,13 +29,16 @@ it works offline. `/api/*` stays as JSON for scripts.
   saying to restart with `-image-base`. A profile whose image URL is missing, not `https://`, or still a documentation placeholder
   (`example.com`, `example.net`, `example.org`, `*.example`, `*.invalid`), or whose SHA-256 is missing or all zeros, or which is
   not valid JSON (a byte-order mark included), is refused at arm time with the reason.
-- **Requests from web pages.** Every state-changing request (arm, disarm, the console's forms, reports, and `GET /boot/{mac}`,
-  which consumes an arm) from a browser on behalf of another origin is refused with 403. The POST and DELETE routes use Go's
-  `http.CrossOriginProtection` (`Sec-Fetch-Site`, or `Origin` against `Host`). `/boot/{mac}` is a GET, which that lets through, so
-  it checks the same two headers itself before looking at any arm: an `<img>` or link to `/boot/<armed MAC>` on another site gets
-  403 and the arm stays. iPXE and curl send neither header and are unaffected; opening the URL from the address bar is allowed.
-  Browsers too old to send `Sec-Fetch-Site` (Chrome before 76, Firefox before 90, Safari before 16.4) send no `Origin` on an
-  image load either, so from those a page on another site can still use up an arm (not arm one: arming needs a POST). JSON
+- **Requests from web pages.** Arming, disarming, the console's forms and reports from a browser on behalf of another origin are
+  refused with 403, using Go's `http.CrossOriginProtection` (`Sec-Fetch-Site`, or `Origin` against `Host`). Using up an arm needs
+  the one-time ticket. A page on another site can make a browser request `/boot/<armed MAC>` (an `<img>`, a link), and over plain
+  HTTP to a LAN address that request carries no browser headers at all, so it looks exactly like iPXE's. But that request changes
+  nothing, and the page cannot read the response that holds the ticket (the server sends no CORS headers), so it cannot reach the
+  URL that consumes the arm. The ticket is 128 random bits, new for each arm, works once, dies with the arm (used, disarmed,
+  expired, or dropped at restart), and is not shown in `/api/state`, the console or the state file. `/boot` also refuses with 403
+  any request whose `Sec-Fetch-Site` or `Origin` shows another site. What remains: a DNS-rebinding page (one that points its own
+  host name at this server, so the browser treats the response as same-origin) and anyone who can read the network traffic can
+  learn the ticket and use up an arm. Neither can create one, because arming needs a POST and, with a token set, the token. JSON
   mutations (`POST /api/armed`, `POST /api/report`) also require `Content-Type: application/json` (415 otherwise). Requests
   without browser headers, such as curl, scripts and the WinPE engine, are unaffected. Without a token, arming and disarming are
   also refused when the request is addressed to a host name other than `localhost` (a DNS-rebinding guard): open the console by IP
@@ -83,7 +87,7 @@ sudo --preserve-env=M2W_TOKEN ./minute2win-server -listen :8080 -manifests ../ma
   Your network's normal DHCP server keeps handing out addresses; minute2win only adds "boot this file from that server". There is
   no full-DHCP mode.
 - **Only armed MACs get an answer.** An unarmed or unknown machine gets no reply at all, so it boots its own disk and the network
-  behaves as if minute2win were not there. The PXE path never consumes the arm; `GET /boot/{mac}` does. After that, the machine's
+  behaves as if minute2win were not there. The PXE path never consumes the arm; the one-time URL that `GET /boot/{mac}` chains to does. After that, the machine's
   next PXE request gets no offer, so firmware that always network-boots first boots Windows instead of wiping again. The armed check
   runs again immediately before each reply is sent, so an arm consumed or removed in the meantime gets no reply.
 - Only DHCPDISCOVER/DHCPREQUEST carrying vendor class `PXEClient` and a client architecture (option 93) are considered. The reply
