@@ -21,13 +21,20 @@ it works offline. `/api/*` stays as JSON for scripts.
 - **Loopback by default; the network needs a token.** The server listens on `127.0.0.1:8080` unless you pass `-listen`. That is
   enough to look at the console, but machines being imaged cannot reach it. On any address other machines can reach (`:8080`,
   `0.0.0.0`, a LAN address) it **refuses to start without `M2W_TOKEN`** and says how to fix it. `-insecure-no-token` overrides
-  that for an isolated lab network where anyone who can reach the port may wipe machines; the server then logs a warning.
+  that for an isolated lab network where anyone who can reach the port may wipe machines; the server then logs a warning. For a
+  host name (`-listen localhost:8080`), the decision is made on the address actually bound, before anything is served or PXE
+  starts, so a name whose DNS answer changes between the check and the bind cannot open a network listener without a token.
 - **No default image host.** `-image-base` has no default. Without it the console runs, but every arm is refused with a message
   saying to restart with `-image-base`. A profile whose image URL is missing, not `https://`, or still a documentation placeholder
   (`example.com`, `example.net`, `example.org`, `*.example`, `*.invalid`), or whose SHA-256 is missing or all zeros, or which is
   not valid JSON (a byte-order mark included), is refused at arm time with the reason.
-- **Requests from web pages.** Every state-changing request (arm, disarm, the console's forms, reports) from a browser on another
-  origin is refused with 403, using Go's `http.CrossOriginProtection` (`Sec-Fetch-Site`, or `Origin` against `Host`). JSON
+- **Requests from web pages.** Every state-changing request (arm, disarm, the console's forms, reports, and `GET /boot/{mac}`,
+  which consumes an arm) from a browser on behalf of another origin is refused with 403. The POST and DELETE routes use Go's
+  `http.CrossOriginProtection` (`Sec-Fetch-Site`, or `Origin` against `Host`). `/boot/{mac}` is a GET, which that lets through, so
+  it checks the same two headers itself before looking at any arm: an `<img>` or link to `/boot/<armed MAC>` on another site gets
+  403 and the arm stays. iPXE and curl send neither header and are unaffected; opening the URL from the address bar is allowed.
+  Browsers too old to send `Sec-Fetch-Site` (Chrome before 76, Firefox before 90, Safari before 16.4) send no `Origin` on an
+  image load either, so from those a page on another site can still use up an arm (not arm one: arming needs a POST). JSON
   mutations (`POST /api/armed`, `POST /api/report`) also require `Content-Type: application/json` (415 otherwise). Requests
   without browser headers, such as curl, scripts and the WinPE engine, are unaffected. Without a token, arming and disarming are
   also refused when the request is addressed to a host name other than `localhost` (a DNS-rebinding guard): open the console by IP
@@ -67,7 +74,9 @@ server**. It is off by default; without `-pxe` nothing PXE-related binds or runs
 
 ```
 export M2W_TOKEN='replace-with-a-long-random-token'      # -pxe needs a network listener, so a token too
-sudo --preserve-env=M2W_TOKEN ./minute2win-server -listen :8080 -manifests ../manifests \n  -image-base https://deploy.example.net/windows11 -pxe -pxe-dir /srv/ipxe      # /srv/ipxe holds ipxe.efi, undionly.kpxe, ...
+sudo --preserve-env=M2W_TOKEN ./minute2win-server -listen :8080 -manifests ../manifests \
+  -image-base https://deploy.example.net/windows11 -pxe -pxe-dir /srv/ipxe
+# replace deploy.example.net with your own boot-asset host; /srv/ipxe holds ipxe.efi, undionly.kpxe, ...
 ```
 
 - **proxyDHCP only.** It never offers an IP address or lease options (`yiaddr` is 0.0.0.0; no subnet, router, DNS or lease time).

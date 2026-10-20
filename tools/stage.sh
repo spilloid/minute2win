@@ -11,14 +11,19 @@ case "$BASE" in
   *) echo "base must be an http:// or https:// URL: $BASE" >&2; exit 2 ;;
 esac
 case "$BASE" in *[[:space:]\"\'\$\{\}\&#\\]*) echo "base must not contain spaces, quotes, \$, braces, &, # or backslashes: $BASE" >&2; exit 2 ;; esac
-rm -rf "$OUT"; mkdir -p "$OUT/minute2win/manifests"
-cp boot/install.ps1 boot/minute2win.ipxe "$OUT/"
+# Build and check the boot script before the output folder is touched, so a failure leaves any earlier staging as it was.
+IPXE="$(mktemp)"; trap 'rm -f "$IPXE"' EXIT
+cp boot/minute2win.ipxe "$IPXE"
 if [ -n "$BASE" ]; then
   # Only the default on the "isset" line changes; the "iseq ... @M2W_BASE@" guard keeps the placeholder it compares against.
-  sed -i.bak "s#^isset \${m2w-base} || set m2w-base @M2W_BASE@#isset \${m2w-base} || set m2w-base ${BASE%/}#" "$OUT/minute2win.ipxe"
-  rm -f "$OUT/minute2win.ipxe.bak"
-  grep -q "set m2w-base ${BASE%/}" "$OUT/minute2win.ipxe" || { echo "could not write the base into minute2win.ipxe" >&2; exit 1; }
+  sed -i.bak "s#^isset \${m2w-base} || set m2w-base @M2W_BASE@#isset \${m2w-base} || set m2w-base ${BASE%/}#" "$IPXE"
+  rm -f "$IPXE.bak"
+  # Literal match: a URL is not a regular expression ([fd00::1] would be a character class).
+  grep -Fq -- "isset \${m2w-base} || set m2w-base ${BASE%/}" "$IPXE" || { echo "could not write the base into minute2win.ipxe" >&2; exit 1; }
 fi
+rm -rf "$OUT"; mkdir -p "$OUT/minute2win/manifests"
+cp boot/install.ps1 "$OUT/"
+cp "$IPXE" "$OUT/minute2win.ipxe"
 cp VERSION engine/Minute2Win.psm1 engine/Start-Minute2Win.ps1 bootstrap/Start-FirstBoot.ps1 templates/unattend-oobe.xml "$OUT/minute2win/"
 cp manifests/win11-pro.json "$OUT/minute2win/manifests/"
 find "$OUT" -type f | sort

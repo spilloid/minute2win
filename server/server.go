@@ -203,12 +203,30 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /manifest/{mac}", s.manifest)
 	mux.HandleFunc("POST /api/report", requireJSON(s.report))
 	// Every state-changing route (arm, disarm, the UI forms, reports) refuses cross-origin browser requests, so a page on another
-	// site cannot arm a wipe. Requests without browser headers (curl, scripts, the WinPE engine) are not affected.
+	// site cannot arm a wipe. Requests without browser headers (curl, scripts, the WinPE engine) are not affected. GET /boot/{mac},
+	// which consumes an arm, is not covered by this (it lets GET through) and checks for itself (crossSiteBrowser).
 	cop := http.NewCrossOriginProtection()
 	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-origin request refused: changes are only accepted from this server's own page or from non-browser clients", http.StatusForbidden)
 	}))
 	return cop.Handler(mux)
+}
+
+// crossSiteBrowser reports whether a request comes from a browser on behalf of a page of another origin. GET /boot/{mac} consumes
+// an arm, but CrossOriginProtection lets every GET through, so without this an <img src=".../boot/MAC"> on any page the operator
+// opens would use up the arm. iPXE sends neither header, nor does curl. A browser too old to send Sec-Fetch-Site (Chrome before 76,
+// Firefox before 90, Safari before 16.4) sends no Origin on an image load either, so it is not stopped here; see SERVER.md.
+func crossSiteBrowser(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "", "same-origin", "none": // none: the operator typed the address or used a bookmark
+	default:
+		return true
+	}
+	if o := r.Header.Get("Origin"); o != "" {
+		u, err := url.Parse(o)
+		return err != nil || !strings.EqualFold(u.Host, r.Host)
+	}
+	return false
 }
 
 // requireJSON: JSON mutations must say so. A browser cannot send application/json to another site without a CORS preflight, which
@@ -393,6 +411,11 @@ func (s *Server) boot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	// Never echo the request into the script: the path is attacker-controlled and iPXE runs every line.
 	const notArmed = "#!ipxe\necho minute2win: not armed, booting the local disk\nexit 1\n"
+	if crossSiteBrowser(r) {
+		// Before any state is read: a refused request neither consumes an arm nor tells the page whether one exists.
+		http.Error(w, "cross-site request refused: /boot is for iPXE, not for web pages", http.StatusForbidden)
+		return
+	}
 	mac, ok := normMAC(r.PathValue("mac"))
 	if !ok {
 		fmt.Fprint(w, notArmed)

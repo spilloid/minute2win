@@ -54,9 +54,9 @@
         <ol>
           <li><span class="n">01</span><div><strong>Arm a MAC with a profile</strong><span class="d">In the console or the JSON API. Unused arms expire.</span></div></li>
           <li><span class="n">02</span><div><strong>Network boot, arm consumed</strong><span class="d">iPXE asks the server for its script. That request uses up the arm, so the next boot is a normal one.</span></div></li>
-          <li><span class="n">03</span><div><strong>Check before touching anything</strong><span class="d">Valid manifest, reachable image, enough room, an eligible internal disk. A bad setup changes nothing.</span></div></li>
+          <li><span class="n">03</span><div><strong>Check before the wipe</strong><span class="d">Valid manifest, reachable image, enough room, an eligible internal disk. If any of these fails, the disk is untouched.</span></div></li>
           <li class="guard"><span class="n">04</span><div><strong>Ten-second abort countdown</strong><span class="d">Shown on screen. Any key stops it. Then the wipe begins.</span></div></li>
-          <li><span class="n">05</span><div><strong>Partition, download, verify, apply</strong><span class="d">GPT layout, SHA-256 check of the image, DISM apply and bcdboot.</span></div></li>
+          <li><span class="n">05</span><div><strong>Partition, download, verify, apply</strong><span class="d">GPT layout, SHA-256 check of the image, DISM apply and bcdboot. The hash can only be checked after the download, so a wrong hash stops here, on an erased disk.</span></div></li>
           <li><span class="n">06</span><div><strong>Reboot into Windows</strong><span class="d">Logs copied to the new disk, Windows Setup finishes, a first-boot script runs once.</span></div></li>
         </ol>
         <figcaption id="runsheet-cap"><span class="dot"></span>Each step reports to the board with its lap time.</figcaption>
@@ -77,7 +77,7 @@
       <div class="features">
         <article class="card"><span class="small-label">Console</span><h3>One binary, one web page</h3><p>A single Go server with the web console and JSON API built in. Arm, disarm and watch deployments from a browser, including a phone.</p></article>
         <article class="card"><span class="small-label">Control</span><h3>One arm, one deployment</h3><p>An arm is used up when the machine asks for its boot script. Unarmed machines get no deployment and boot their own disk.</p></article>
-        <article class="card"><span class="small-label">Images</span><h3>Pinned by SHA-256</h3><p>A manifest names the image URL, its exact hash, the edition and the disk needs. A wrong or corrupted download stops the deployment.</p></article>
+        <article class="card"><span class="small-label">Images</span><h3>Pinned by SHA-256</h3><p>A manifest names the image URL, its exact hash, the edition and the disk needs. A wrong or corrupted download stops the deployment before Windows is applied.</p></article>
         <article class="card"><span class="small-label">Boot</span><h3>Built-in PXE, if you want it</h3><p>Optional proxyDHCP and read-only TFTP that answer only armed machines, alongside your normal DHCP server. Your existing iPXE or USB route works too.</p></article>
         <article class="card"><span class="small-label">Visibility</span><h3>Every phase on the board</h3><p>Lap times for each phase, live. Logs and <code>timing.json</code> are kept on the installed disk under <code>C:\Windows\Logs\minute2win</code>.</p></article>
         <article class="card"><span class="small-label">Upkeep</span><h3>Update without rebuilding WinPE</h3><p>WinPE downloads the deployment engine at boot, so script updates do not need a new boot image unless its boot configuration changes.</p></article>
@@ -161,7 +161,7 @@
         <div class="safety-intro">
           <p class="eyebrow"><span class="dot"></span>Safety</p>
           <h2 id="safety-title">Destructive by design.<br><em>Guarded</em> by design.</h2>
-          <p>minute2win never asks &ldquo;are you sure?&rdquo; at the machine, because zero-touch means nobody is there to answer. The decision happens when you arm. Everything else is built so that an arm is the only way in, and a mistake in the setup stops before the disk is touched.</p>
+          <p>minute2win never asks &ldquo;are you sure?&rdquo; at the machine, because zero-touch means nobody is there to answer. The decision happens when you arm. Everything else is built so that an arm is the only way in, and most setup mistakes stop before the disk is touched. The exception is the image itself: its SHA-256 can only be checked once it is downloaded, after partitioning.</p>
           <p>These guards do not replace checking which machine you arm.</p>
           <a class="text-link" href="STATUS.html#known-limitations">Accepted risks and limitations <span aria-hidden="true">&rarr;</span></a>
         </div>
@@ -169,7 +169,7 @@
           <div class="rail"><h3>Opt-in per boot</h3><p>Only an armed MAC gets a deployment script, and serving it uses up the arm. A machine that network boots again afterwards boots its disk.</p></div>
           <div class="rail"><h3>Arms are short-lived</h3><p>An arm nobody boots expires (two hours by default), and no arm survives a server restart. Re-arm what you still want.</p></div>
           <div class="rail"><h3>Fails closed</h3><p>If the server cannot durably record that an arm was used, it does not deploy. If it cannot even restore its state, it refuses all boots and arms.</p></div>
-          <div class="rail"><h3>Checks before the wipe</h3><p>Manifest, image reachability and size, and disk capacity are checked first. A dead URL or a too-small disk leaves the machine as it was.</p></div>
+          <div class="rail"><h3>Checks before the wipe</h3><p>Manifest, image reachability and size, and disk capacity are checked first. A dead URL or a too-small disk leaves the machine as it was. A wrong hash or a corrupted download is caught only after partitioning and leaves the disk erased, so try each new profile on a VM first.</p></div>
           <div class="rail"><h3>Picks the disk carefully</h3><p>The lowest-numbered internal disk of at least 64&nbsp;GB. Never USB or a file-backed virtual disk; SD and eMMC only after fixed disks.</p></div>
           <div class="rail"><h3>WinPE and UEFI only</h3><p>The engine refuses to run outside WinPE or on non-UEFI firmware, and shows a ten-second countdown any key can abort.</p></div>
           <div class="rail caution"><h3>Set the token</h3><p>Release 0.1.2 listens on every interface by default and the token is optional: without <code>M2W_TOKEN</code>, anyone who can reach the server, or any web page open in your browser, can arm a wipe. Set it, even on <code>127.0.0.1</code>. Fixed in the source for the next release: loopback by default, no network listener without a token, and arming requests from other sites refused.</p></div>

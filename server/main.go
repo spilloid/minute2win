@@ -137,6 +137,9 @@ func pxeHTTPTarget(bound net.Addr, override net.IP, local []net.IP) (port int, a
 	return tcp.Port, nil, "", nil
 }
 
+// lookupIP resolves -listen's host name; a variable so a test can give the check and the bind different answers.
+var lookupIP = net.LookupIP
+
 // listenIsLoopback reports whether -listen only accepts connections from this machine: a loopback address, or a name (localhost)
 // that resolves only to loopback addresses. An empty host (":8080") means every interface.
 func listenIsLoopback(listen string) bool {
@@ -147,7 +150,7 @@ func listenIsLoopback(listen string) bool {
 	if ip := net.ParseIP(host); ip != nil {
 		return ip.IsLoopback()
 	}
-	ips, err := net.LookupIP(host)
+	ips, err := lookupIP(host)
 	if err != nil || len(ips) == 0 {
 		return false
 	}
@@ -180,6 +183,26 @@ func checkListen(listen, token string, insecure bool) (warning string, err error
     Only arming and disarming use it; machines being imaged never need it.
   - preview on this machine only: -listen 127.0.0.1:8080 (the default; machines being imaged cannot reach it).
   - on an isolated lab network where anyone who can reach this port may wipe machines: add -insecure-no-token`, listen)
+}
+
+// openListener checks -listen, binds it, then checks again against the address actually bound, closing the listener if that is
+// refused. The first check refuses a literal or wildcard address without opening a port; the second is the one that counts: a host
+// name is resolved again by the bind, and the answer may differ (DNS changes, rebinding), so only the bound address is trusted.
+// It runs before anything is served and before PXE starts.
+func openListener(listen, token string, insecure bool, listenFn func(network, address string) (net.Listener, error)) (net.Listener, string, error) {
+	if _, err := checkListen(listen, token, insecure); err != nil {
+		return nil, "", err
+	}
+	ln, err := listenFn("tcp", listen)
+	if err != nil {
+		return nil, "", err
+	}
+	warning, err := checkListen(ln.Addr().String(), token, insecure)
+	if err != nil {
+		ln.Close()
+		return nil, "", err
+	}
+	return ln, warning, nil
 }
 
 // checkImageBase validates -image-base: the folder iPXE fetches wimboot, BCD, boot.sdi and boot.wim from.
@@ -216,7 +239,7 @@ func main() {
 	*manifests = findManifests(*manifests)
 
 	token := os.Getenv("M2W_TOKEN")
-	warning, err := checkListen(*listen, token, *insecure)
+	ln, warning, err := openListener(*listen, token, *insecure, net.Listen)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -246,11 +269,7 @@ func main() {
 	if images == "" {
 		images = "(none: arming refused)"
 	}
-	log.Printf("minute2win-server on %s, manifests %s, images %s", *listen, *manifests, images)
-	ln, err := net.Listen("tcp", *listen)
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Printf("minute2win-server on %s, manifests %s, images %s", ln.Addr(), *manifests, images)
 	if *pxe {
 		cfg := PXEConfig{DHCPPort: *pxeDHCP, ProxyPort: *pxeProxy, TFTPPort: *pxeTFTP, ClientPort: 68, Dir: *pxeDir,
 			FileX64: *pxeX64, FileBIOS: *pxeBIOS, FileARM64: *pxeARM, FileIA32: *pxeIA32}
