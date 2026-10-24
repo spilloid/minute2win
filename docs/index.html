@@ -51,13 +51,13 @@
         <p class="lead">Type a MAC address. Pick a profile. That machine&rsquo;s next network boot wipes it and installs Windows from <em>your</em> SHA-256-verified image, while every phase lands on a live board with its lap time. No USB stick. Nobody at the keyboard. One small server you own.</p>
         <div class="actions">
           <a class="button primary" href="WALKTHROUGH.html">Set it up, start to finish <span aria-hidden="true">&rarr;</span></a>
-          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.1.2">Download v0.1.2 <span aria-hidden="true">&darr;</span></a>
+          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.2.0">Download v0.2.0 <span aria-hidden="true">&darr;</span></a>
         </div>
         <div class="warning" role="note">
           <span class="warn-icon" aria-hidden="true">!</span>
           <p><strong>Deployment erases the selected internal disk without a confirmation prompt.</strong> That is the point: arming a machine is the authorization to reimage it. Start with a disposable VM, use your own boot files and Windows image, and set <code>M2W_TOKEN</code> before the server is reachable from your network.</p>
         </div>
-        <p class="hero-meta">v0.1.2 &middot; early release &middot; signed Windows x64 server &middot; Linux amd64/arm64 + AppImage &middot; MIT licensed</p>
+        <p class="hero-meta">v0.2.0 &middot; early release &middot; signed Windows x64 server &middot; Linux amd64/arm64 + AppImage &middot; MIT licensed</p>
       </div>
     </section>
 
@@ -223,7 +223,7 @@
           <div class="rail"><h3>Checks before the wipe</h3><p>Manifest, image reachability and size, and disk capacity. A dead URL or a too-small disk leaves the machine as it was.</p></div>
           <div class="rail"><h3>Picks the disk carefully</h3><p>The lowest-numbered internal disk of at least 64&nbsp;GB. Never USB or a file-backed virtual disk.</p></div>
           <div class="rail"><h3>WinPE + UEFI only, with a countdown</h3><p>The engine refuses to run anywhere else, and shows ten seconds any key can abort.</p></div>
-          <div class="rail caution"><h3>Set the token</h3><p>Release 0.1.2 listens on every interface by default and the token is optional: without <code>M2W_TOKEN</code>, anyone who can reach the server, or any web page open in your browser, can arm a wipe. Set it, and pass <code>-listen</code> explicitly. The next release fixes the defaults: loopback first, no network listener without a token, cross-site arming refused.</p></div>
+          <div class="rail caution"><h3>Set the token</h3><p>The server listens on loopback by default, refuses to listen on the network without <code>M2W_TOKEN</code>, and refuses arming requests from other web pages. <code>-insecure-no-token</code> switches the token off: then anyone who can reach the port can arm a wipe, so use it only on an isolated lab network. The console speaks plain HTTP; keep it on a trusted segment or behind a TLS proxy. Upgrading from an older release? Read the changelog first.</p></div>
           <div class="rail caution"><h3>Mind the static route</h3><p>The static <code>boot/minute2win.ipxe</code> deploys on every boot that reaches it. Use it only behind a per-boot opt-in; prefer server arms.</p></div>
         </div>
       </div>
@@ -232,7 +232,7 @@
     <section id="status" class="section wrap" aria-labelledby="status-title">
       <div class="section-heading">
         <div><p class="eyebrow">Know where it stands</p><h2 id="status-title">Early release.<br><span class="foil">Honest</span> about it.</h2></div>
-        <p>Version 0.1.2 is for evaluation on machines you can afford to wipe. Every claim on this page comes from the public verification record.</p>
+        <p>Version 0.2.0 is for evaluation on machines you can afford to wipe. Every claim on this page comes from the public verification record.</p>
       </div>
       <div class="status-grid">
         <div class="status-list">
@@ -243,7 +243,7 @@
         <div class="status-list">
           <article><span class="tag dim">Not yet verified</span><h3>Physical hardware and Secure Boot</h3><p>Real firmware PXE, the port 4011 path, Secure Boot and multi-interface hosts. OEM product keys may skip the first-boot script.</p></article>
           <article><span class="tag dim">Not in this release</span><h3>Domain, Entra or hybrid join</h3><p>Not implemented; use <code>joinMethod: none</code> and enroll separately. Windows images, WinPE, wimboot and iPXE are not included.</p></article>
-          <article><span class="tag dim">Bring your own</span><h3>Boot files and image host</h3><p>In 0.1.2 the included profile points at a restricted maintainer host. Replace it with your own image, hash and boot files; the walkthrough shows how.</p></article>
+          <article><span class="tag dim">Bring your own</span><h3>Boot files and image host</h3><p>There is no default image or boot-file host. The included profile is a template the server will not arm until it points at your own image and hash, and <code>-image-base</code> at your own boot files; the walkthrough shows how.</p></article>
         </div>
       </div>
     </section>
@@ -304,7 +304,7 @@ export M2W_TOKEN='replace-with-a-long-random-token'
         <p>Arm it. Boot it. Read the board. Then decide whether minute2win belongs on your network.</p>
         <div class="actions">
           <a class="button primary" href="WALKTHROUGH.html">Set it up <span aria-hidden="true">&rarr;</span></a>
-          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.1.2">Download v0.1.2 <span aria-hidden="true">&darr;</span></a>
+          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.2.0">Download v0.2.0 <span aria-hidden="true">&darr;</span></a>
         </div>
       </div>
     </section>

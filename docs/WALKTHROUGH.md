@@ -305,9 +305,10 @@ Start-VM m2w-lab; vmconnect.exe localhost m2w-lab
 1. **Firmware network boot.** Hyper-V's UEFI says it is starting PXE over IPv4, gets an address from your router and the boot file from minute2win, and downloads `ipxe.efi`. The server logs the offer for your MAC.
 2. **iPXE.** It asks minute2win for its boot script, and the arm is used up right then. The screen shows lines from the server:
    ```text
+   minute2win: 00:15:5d:00:2a:01 is armed, fetching its one-time deployment script
    minute2win: 00:15:5d:00:2a:01 armed for lab-win11, deploying (this wipes the disk)
    ```
-   (The current source first prints `... is armed, fetching its one-time deployment script` and follows a one-time link.) The **Armed** list in the console empties.
+   (Release 0.1.2 and earlier print only the second line.) The **Armed** list in the console empties.
 3. **wimboot and WinPE.** Files download, then WinPE starts: `minute2win: waiting for network...` (up to a minute if your network blocks ping to the internet), then the engine:
    ```text
    minute2win <version>
