@@ -22,7 +22,7 @@ Tag protection matters because a pushed tag selects the release workflow itself.
 ## Release checklist
 
 1. Merge changes through a PR. CI must pass. Independently review non-trivial behavior/signing changes and record findings in `docs/dev-process.md`.
-2. Update VERSION, the README version and CHANGELOG together. Keep `docs/STATUS.md` and implementation notes aligned with actual evidence. Documentation-only changes do not change the release version.
+2. Update VERSION, the README version, the product page (`docs/index.html`: download links and text) and CHANGELOG together; `tests/site-version.sh`, run by the Pages workflow, fails while the page names another version. Keep `docs/STATUS.md` and implementation notes aligned with actual evidence. Documentation-only changes do not change the release version.
 3. Tag the merged commit with an annotated `vX.Y.Z` tag and push it. `release.yml` also supports manual rebuilds of an existing tag. It refuses tags outside the strict version format or commits not on main.
 4. Wait for build, Windows signing and signature/timestamp verification. The workflow creates or replaces assets only on a **draft** release and refuses to modify a published release.
 5. Download all assets from that draft. Run `sha256sum -c SHA256SUMS`. Confirm the expected Linux amd64/arm64 archives, the x86_64 AppImage, Windows x64 zip, boot-files zip and SIGNATURES.txt are present.

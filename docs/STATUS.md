@@ -13,6 +13,7 @@ Current code version: **0.1.2**. This is an early release for evaluation. The se
 | Deployment logic | Pester tests and a real WinPE engine run on a disposable 80 GB VM disk | Physical hardware validation |
 | PowerShell compatibility | PowerShell 5.1 syntax lint and runtime in ADK WinPE | Other ADK versions and hardware |
 | Server arm, boot, report and persistence rules | Go tests; race detector in CI | Operational validation on deployment hosts |
+| Arm request protection (after 0.1.2) | Go tests for cross-origin refusal, JSON content type, the no-token host-name guard, loopback default, startup refusal and arm-time image checks; headless Chrome on Windows: a page on another origin could not arm, the console's own form could. One-time boot ticket: Go tests (a headerless GET leaves the arm; ticket single-use, secret, per arm, expires with it); headless Chrome: a page on another origin loading `/boot/<armed MAC>` by img, script, iframe and fetch consumed the arm on the previous build and not on this one, with the header check disabled in both to isolate the ticket | Playwright suite, PXE LAN harness (real iPXE following the chain) and VM run not repeated since this change |
 | Console | Playwright flow, phone width, light/dark | Operator feedback |
 | PXE policy and TFTP | Go tests plus real OVMF UEFI proxy DHCP and shim/iPXE TFTP from Windows | Port 4011 path, physical firmware and socket pressure |
 | Simulated LAN | QEMU BIOS iPXE ROM, separate DHCP service; consume, ignore, re-arm checks | Physical BIOS/UEFI firmware and Secure Boot |
@@ -34,12 +35,13 @@ The original deployment issues are tracked in [#2](https://github.com/spilloid/m
 | Default-profile setup takes additional time | Board done precedes Windows setup and OOBE | Wait for installed-OS setup; validate OOBE and first-boot logs separately |
 | Limited install coverage | One VM is insufficient to establish production readiness | Capture OOBE/first-boot evidence and validate physical machines |
 | Windows 0.1.1 persistent arming ([#7](https://github.com/spilloid/minute2win/issues/7)) | Directory sync fails and degrades the server | Fixed in 0.1.2 source; for an older lab build, `-data ""` disables persistence |
-| Restricted default image host/profile | Public users can receive HTTP 403 and cannot rely on those assets | Set your own base URLs and image URI/hash; rebuild WinPE |
+| No default image or boot-asset host (changed after 0.1.2) | The server refuses to arm without `-image-base`; the WinPE builder, loader and static iPXE script stop without a base; the shipped profile is a template the server will not arm | Set your own `-image-base`, builder `-Base` (or `m2w-base`) and profile image URL/hash; 0.1.2 and earlier defaulted to the maintainer's restricted host |
 | Older maintainer WinPE lacks auto-run | Boot can stop at a prompt | Build with this repository's builder, or manually launch the loader |
 | OEM product keys may skip SetupComplete | First-boot bootstrap and logs may not run | No verified fallback; test a firmware-key machine |
 | Report key available during manifest delivery window | A LAN host knowing the MAC can forge a board outcome | Isolate deployment traffic; verify the installed OS and logs |
 | Static iPXE route repeats deployment | A forced network/USB-first boot can wipe again | Use server arms or a deliberate per-boot opt-in |
-| Token is optional | Any reachable host can arm a wipe when it is unset | Always set M2W_TOKEN on a network-accessible server |
+| Token can be switched off | Since the change after 0.1.2, a network listener needs M2W_TOKEN, but `-insecure-no-token` lets any reachable host arm a wipe. 0.1.2 and earlier listened on every interface with no token by default, and any web page in the operator's browser could arm a wipe on a server without a token | Set M2W_TOKEN; use `-insecure-no-token` only on an isolated lab network. With 0.1.2, set the token even on loopback |
+| Read routes are open | `/api/state` and the console list armed MACs and deployments to anyone who can reach the server; the token gates only changes | Keep the server on a trusted deployment network |
 | Arms are dropped on restart | Pending work must be re-armed | Deliberate fail-closed behavior; review the target before re-arming |
 | Physical firmware/Secure Boot unverified | OVMF UEFI worked; target firmware may differ | Test your firmware and signed chain; existing boot infrastructure remains an option |
 | AD/Entra/hybrid joins not implemented | Tenant configuration only logs that work is unimplemented | Use joinMethod none; manage enrollment separately |

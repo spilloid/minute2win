@@ -17,12 +17,13 @@
   <div class="shell">
     <nav aria-label="Documentation">
       <p class="nav-title">Documentation</p>
-      {% assign guides = 'index.md,GETTING_STARTED.md,BOOT_ASSETS.md,MANIFESTS.md,SERVER.md,API.md,TROUBLESHOOTING.md,STATUS.md,RELEASING.md' | split: ',' %}
+      {% assign guides = 'guide.md,GETTING_STARTED.md,BOOT_ASSETS.md,MANIFESTS.md,SERVER.md,API.md,TROUBLESHOOTING.md,STATUS.md,RELEASING.md' | split: ',' %}
       {% for path in guides %}
         {% assign guide = site.pages | where: 'path', path | first %}
         <a href="{{ guide.url | relative_url }}" {% if page.path == path %}aria-current="page"{% endif %}>{{ guide.title | escape }}</a>
       {% endfor %}
       <p class="nav-title">Project</p>
+      <a href="{{ '/' | relative_url }}">Product overview</a>
       <a href="https://github.com/spilloid/minute2win">Source on GitHub ↗</a>
       <a href="https://github.com/spilloid/minute2win/issues">Issues ↗</a>
     </nav>

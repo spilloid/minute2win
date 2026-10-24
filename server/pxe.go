@@ -5,7 +5,7 @@ package main
 // Policy (deliberate; see README "Built-in PXE"):
 //   - proxyDHCP only. Replies never offer an address or lease options; the network's DHCP server keeps doing that.
 //   - Only ARMED MACs get a reply. Everything else gets silence and boots its disk. The PXE path never consumes the arm; only
-//     GET /boot/{mac} does, so after the deploy starts the machine gets no more offers (no re-wipe loop on PXE-first firmware).
+//     the one-time URL GET /boot/{mac} chains to does, so after the deploy starts the machine gets no more offers (no re-wipe loop on PXE-first firmware).
 //   - Firmware PXE gets the iPXE binary for its architecture over TFTP; iPXE itself gets http://<server>/boot/<mac>.
 //
 // Reply destinations (PXE 2.1 / RFC 2131 rules for a server that assigns no address):

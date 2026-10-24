@@ -9,17 +9,46 @@ title: Server reference
 arming and disarming, with no app JavaScript. htmx is vendored, not loaded from a CDN, so
 it works offline. `/api/*` stays as JSON for scripts.
 
-- **Arm** a MAC with a profile. The target's iPXE runs `chain http://<server>:8080/boot/${net0/mac}`. An armed MAC gets the
-  minute2win boot script and is **disarmed in the same moment**: one arm is one wipe, so a machine that network-boots first does not
+- **Arm** a MAC with a profile. The target's iPXE runs `chain http://<server>:8080/boot/${net0/mac}`. For an armed MAC that
+  request changes nothing: it answers with a script that chains a one-time URL, `/boot/{mac}/{ticket}`, and iPXE follows it. That
+  second request gets the minute2win boot script and **disarms the MAC in the same moment**: one arm is one wipe, so a machine that network-boots first does not
   wipe itself again after the deploy reboots it. An unarmed MAC gets `exit 1` and the firmware boots the local disk. Arms that nobody
   boots expire (`-arm-ttl`, default 2h), and **arms do not survive a restart of the server**: re-arm what you still want.
 - The server serves the armed manifest with `report.url` set to itself. The engine then posts every phase and lap time, and the
   **Deployments** board shows a live stopwatch against the 60-second target.
-- `M2W_TOKEN=...` makes arming and disarming require that token. Without it, anyone who can reach the server can arm a machine
-  (the server warns about this at startup).
+- **Who needs the token.** `M2W_TOKEN=...` gates arming and disarming (the API's `Authorization: Bearer`, the console's token
+  field). The machines being imaged never use it: iPXE's `GET /boot/{mac}` and `GET /manifest/{mac}` and the engine's
+  `POST /api/report` (authenticated by a per-deployment report key) work the same with or without a token.
+- **Loopback by default; the network needs a token.** The server listens on `127.0.0.1:8080` unless you pass `-listen`. That is
+  enough to look at the console, but machines being imaged cannot reach it. On any address other machines can reach (`:8080`,
+  `0.0.0.0`, a LAN address) it **refuses to start without `M2W_TOKEN`** and says how to fix it. `-insecure-no-token` overrides
+  that for an isolated lab network where anyone who can reach the port may wipe machines; the server then logs a warning. For a
+  host name (`-listen localhost:8080`), the decision is made on the address actually bound, before anything is served or PXE
+  starts, so a name whose DNS answer changes between the check and the bind cannot open a network listener without a token.
+- **No default image host.** `-image-base` has no default. Without it the console runs, but every arm is refused with a message
+  saying to restart with `-image-base`. A profile whose image URL is missing, not `https://`, or still a documentation placeholder
+  (`example.com`, `example.net`, `example.org`, `*.example`, `*.invalid`), or whose SHA-256 is missing or all zeros, or which is
+  not valid JSON (a byte-order mark included), is refused at arm time with the reason.
+- **Requests from web pages.** Arming, disarming, the console's forms and reports from a browser on behalf of another origin are
+  refused with 403, using Go's `http.CrossOriginProtection` (`Sec-Fetch-Site`, or `Origin` against `Host`). Using up an arm needs
+  the one-time ticket. A page on another site can make a browser request `/boot/<armed MAC>` (an `<img>`, a link), and over plain
+  HTTP to a LAN address that request carries no browser headers at all, so it looks exactly like iPXE's. But that request changes
+  nothing, and the page cannot read the response that holds the ticket (the server sends no CORS headers), so it cannot reach the
+  URL that consumes the arm. The ticket is 128 random bits, new for each arm, works once, dies with the arm (used, disarmed,
+  expired, or dropped at restart), and is not shown in `/api/state`, the console or the state file. `/boot` also refuses with 403
+  any request whose `Sec-Fetch-Site` or `Origin` shows another site. What remains: a DNS-rebinding page (one that points its own
+  host name at this server, so the browser treats the response as same-origin) and anyone who can read the network traffic can
+  learn the ticket and use up an arm. A ticket alone cannot create an arm: arming needs a POST and, with a token set, the token.
+  But the server speaks plain HTTP, so anyone who can read the operator's traffic can also capture `M2W_TOKEN` itself and then
+  arm and disarm machines. Keep the console on a trusted network segment, or put it behind a TLS reverse proxy. JSON
+  mutations (`POST /api/armed`, `POST /api/report`) also require `Content-Type: application/json` (415 otherwise). Requests
+  without browser headers, such as curl, scripts and the WinPE engine, are unaffected. Without a token, arming and disarming are
+  also refused when the request is addressed to a host name other than `localhost` (a DNS-rebinding guard): open the console by IP
+  address, or set a token. Behind a reverse proxy, forward the original `Host` header.
 
 ```
-cd server && go build -o minute2win-server . && M2W_TOKEN=... ./minute2win-server -manifests ../manifests -data ./data
+cd server && go build -o minute2win-server . && M2W_TOKEN=... ./minute2win-server -listen :8080 -manifests ../manifests -data ./data \
+  -image-base https://deploy.example.net/windows11    # replace with your own boot-asset host
 ```
 
 For existing DHCP/TFTP infrastructure, route the target to iPXE (for example, `ipxe.efi` for x64 UEFI). Give iPXE an embedded or chained script that
@@ -29,14 +58,20 @@ runs the `chain .../boot/${net0/mac}` line above.
 
 | Flag | Default | Purpose |
 | --- | --- | --- |
-| -listen | :8080 | HTTP address; use loopback for preview and a reachable LAN address for deployment |
+| -listen | 127.0.0.1:8080 | HTTP address. Loopback previews the console; deployment needs an address targets can reach (`:8080` or a LAN address) and `M2W_TOKEN` |
 | -manifests | Auto-detected | Profiles directory: current directory, executable directory, then ../manifests |
-| -image-base | Maintainer host | URL serving wimboot, WinPE, BCD and boot.sdi; replace with your host |
+| -image-base | none (required to arm) | URL of your folder serving wimboot, BCD, boot.sdi and boot.wim. Must be `http://` or `https://`; placeholder hosts are refused at startup |
+| -insecure-no-token | off | Allow a network-reachable `-listen` without `M2W_TOKEN`: anyone who can reach the port can arm a disk wipe |
 | -data | data | State directory; an empty value keeps state in memory |
 | -arm-ttl | 2h | Expiration of unused arms |
 | -open | true on Windows | Open browser at startup |
 
 `M2W_TOKEN` is an environment variable, not a command-line flag. Boot assets and the image are served separately from the console. Read [Getting started](GETTING_STARTED.md) for the complete setup.
+
+**Changed after 0.1.2.** Release 0.1.2 and earlier listened on every interface by default, treated the token as optional,
+defaulted `-image-base` to the maintainer's restricted host and did not check where a request came from. With those builds, pass
+`-listen` and `-image-base` explicitly and always set `M2W_TOKEN`, even on loopback: without a token, any web page open in the
+operator's browser could arm a machine.
 
 ## Built-in PXE (optional, `-pxe`)
 
@@ -44,14 +79,17 @@ runs the `chain .../boot/${net0/mac}` line above.
 server**. It is off by default; without `-pxe` nothing PXE-related binds or runs.
 
 ```
-sudo ./minute2win-server -manifests ../manifests -pxe -pxe-dir /srv/ipxe      # /srv/ipxe holds ipxe.efi, undionly.kpxe, ...
+export M2W_TOKEN='replace-with-a-long-random-token'      # -pxe needs a network listener, so a token too
+sudo --preserve-env=M2W_TOKEN ./minute2win-server -listen :8080 -manifests ../manifests \
+  -image-base https://deploy.example.net/windows11 -pxe -pxe-dir /srv/ipxe
+# replace deploy.example.net with your own boot-asset host; /srv/ipxe holds ipxe.efi, undionly.kpxe, ...
 ```
 
 - **proxyDHCP only.** It never offers an IP address or lease options (`yiaddr` is 0.0.0.0; no subnet, router, DNS or lease time).
   Your network's normal DHCP server keeps handing out addresses; minute2win only adds "boot this file from that server". There is
   no full-DHCP mode.
 - **Only armed MACs get an answer.** An unarmed or unknown machine gets no reply at all, so it boots its own disk and the network
-  behaves as if minute2win were not there. The PXE path never consumes the arm; `GET /boot/{mac}` does. After that, the machine's
+  behaves as if minute2win were not there. The PXE path never consumes the arm; the one-time URL that `GET /boot/{mac}` chains to does. After that, the machine's
   next PXE request gets no offer, so firmware that always network-boots first boots Windows instead of wiping again. The armed check
   runs again immediately before each reply is sent, so an arm consumed or removed in the meantime gets no reply.
 - Only DHCPDISCOVER/DHCPREQUEST carrying vendor class `PXEClient` and a client architecture (option 93) are considered. The reply
@@ -123,9 +161,16 @@ that boot 2's PXE DISCOVER gets no reply, and (positive control) that after re-a
 ## Windows
 
 The Windows build (`minute2win-server-X-windows-x64.zip`, Authenticode-signed) is the same server: extract it, run
-`minute2win-server.exe`, and the UI opens in your browser. It prints the line a target should chain, for example
-`http://192.168.1.50:8080/boot/${net0/mac}`. Windows Firewall will ask to allow it on private networks; that is what lets the target
-reach it. Set `M2W_TOKEN` first: a laptop that can arm disk wipes should not leave the port open without one.
+`minute2win-server.exe`, and the UI opens in your browser on `127.0.0.1:8080`, which only this PC can reach. To deploy, set the
+token and listen on the network:
+
+```powershell
+$env:M2W_TOKEN = 'replace-with-a-long-random-token'
+.\minute2win-server.exe -listen :8080 -image-base https://deploy.example.net/windows11   # your own boot-asset host
+```
+
+It then prints the line a target should chain, for example `http://192.168.1.50:8080/boot/${net0/mac}`. Windows Firewall will ask
+to allow it on private networks; that is what lets the target reach it. Without `M2W_TOKEN` it refuses to listen on the network.
 
 The natural pairing is kvm-it's USB boot drive: the target only needs ordinary DHCP from your network, so no DHCP or TFTP server is
 needed. For plain PXE, enable the built-in front end with `-pxe`, or use an existing DHCP/TFTP service such as dnsmasq. The ordinary DHCP server still provides addresses in either case.

@@ -13,6 +13,18 @@ def post(path, body):
     return urllib.request.urlopen(req).status
 
 
+def boot(mac):
+    """What iPXE does with chain <server>/boot/${net0/mac}: GET /boot/<mac> changes nothing and, for an armed MAC, chains a
+    one-time URL; following that consumes the arm and returns the deployment script."""
+    script = urllib.request.urlopen(f"{BASE}/boot/{mac}").read().decode()
+    for line in script.splitlines():
+        if line.startswith("chain "):
+            url = line[len("chain "):]
+            assert url.startswith(f"{BASE}/boot/{mac}/"), script
+            return urllib.request.urlopen(url).read().decode()
+    return script
+
+
 def no_hscroll(page, label):
     over = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
     assert over <= 0, f"{label}: page scrolls horizontally by {over}px"
@@ -22,7 +34,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 1280, "height": 900})
     page.goto(BASE + "/")
-    expect(page.locator("select[name=manifest] option")).to_have_count(1)  # win11-pro; manifests/examples/ is not deployable
+    expect(page.locator("select[name=manifest] option")).to_have_count(1)  # the fixture profile in tests/ui/profiles (the shipped one is a placeholder template)
     expect(page.locator("#armed-empty")).to_be_visible()
     expect(page.locator("#armed")).to_be_hidden()
     expect(page.locator("input[name=token]")).to_be_hidden()  # this server has no token
@@ -42,7 +54,7 @@ with sync_playwright() as p:
     page.screenshot(path=f"{SHOTS}/armed-desktop.png", full_page=True)
 
     # the target network-boots: the arm is consumed and a deployment appears
-    script = urllib.request.urlopen(f"{BASE}/boot/{MAC}").read().decode()
+    script = boot(MAC)
     assert "wimboot" in script, script
     key = json.loads(urllib.request.urlopen(f"{BASE}/manifest/{MAC}").read())["report"]["key"]  # what WinPE receives
     expect(page.locator("#armed tbody tr")).to_have_count(0)
@@ -72,7 +84,7 @@ with sync_playwright() as p:
     page.fill("input[name=mac]", "52:54:00:00:00:03")
     page.click("button[type=submit]")
     expect(page.locator("#armed tbody tr")).to_have_count(1)
-    urllib.request.urlopen(f"{BASE}/boot/52:54:00:00:00:03").read()
+    assert "wimboot" in boot("52:54:00:00:00:03")
     page.get_by_role("button", name="Disarm").click()
     expect(page.locator("#msg")).to_contain_text("was not armed")
     expect(page.locator("#msg")).to_have_class("err")

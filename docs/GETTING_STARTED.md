@@ -14,7 +14,9 @@ Supply your own licensed Windows image, WinPE built with the Windows ADK and Win
 
 ## 2. Preview the console
 
-Extract a [server release](https://github.com/spilloid/minute2win/releases) and verify its checksums. Set `M2W_TOKEN`, then start with `-listen 127.0.0.1:8080`. Open the console at <http://localhost:8080>. Windows opens the browser by default; Linux users open it themselves.
+Extract a [server release](https://github.com/spilloid/minute2win/releases) and verify its checksums. Start it with `-listen 127.0.0.1:8080`. Open the console at <http://localhost:8080>. Windows opens the browser by default; Linux users open it themselves.
+
+The current source listens on `127.0.0.1:8080` by default, and without `-image-base` it refuses every arm, so a preview cannot start a deployment. Release 0.1.2 and earlier listened on every interface by default and did not check where requests came from: with those builds pass `-listen 127.0.0.1:8080` explicitly and set `M2W_TOKEN` even for a preview, or any web page open in your browser could arm a machine.
 
 ![The console on a phone-width screen in dark mode, with two deployments on the board.](assets/screenshots/phone-dark.png)
 
@@ -24,7 +26,7 @@ Do not arm a real target during a preview. Binding to loopback prevents remote t
 
 ## 3. Create your deployment profile
 
-Create a separate directory such as `profiles/` and copy a template from `manifests/examples/` in the source checkout, or adapt the included `manifests/win11-pro.json`. Set an HTTPS image URI, its exact SHA-256, and the image edition. Use a profile filename such as `lab-win11.json`; the UI calls it `lab-win11`.
+Create a separate directory such as `profiles/` and copy a template from `manifests/examples/` in the source checkout, or adapt the included `manifests/win11-pro.json`. The included profile is a template: its image URL is on the placeholder host `your-image-host.invalid` and its hash is all zeros, and the server refuses to arm it until you replace both. Set an HTTPS image URI, its exact SHA-256, and the image edition. Use a profile filename such as `lab-win11.json`; the UI calls it `lab-win11`.
 
 On Windows, compute the image hash with:
 
@@ -38,7 +40,7 @@ On Linux:
 sha256sum /srv/images/install.wim
 ```
 
-Keep `tenant.joinMethod` as `none`, `oobe.adminUser` as `null`, and the default countdown for initial testing. Do not use placeholder hashes or the restricted maintainer image URL. Read [Manifest reference](MANIFESTS.md) for capacity checks and the consequences of creating a local OOBE administrator.
+Keep `tenant.joinMethod` as `none`, `oobe.adminUser` as `null`, and the default countdown for initial testing. The server refuses to arm a profile whose image URL is a documentation placeholder or whose hash is missing or all zeros. Read [Manifest reference](MANIFESTS.md) for capacity checks and the consequences of creating a local OOBE administrator.
 
 ## 4. Build and host the boot assets
 
@@ -46,7 +48,7 @@ Follow [Boot assets](BOOT_ASSETS.md). Build WinPE with `-Base` set to your own b
 
 ## 5. Start a reachable server
 
-Use an actual LAN address or wildcard listener, your own profiles, and your own image base. For example, on Linux:
+Use an actual LAN address or wildcard listener, your own profiles, and your own image base. On any address other machines can reach, the server refuses to start without `M2W_TOKEN`. For example, on Linux:
 
 ```bash
 export M2W_TOKEN='replace-with-a-long-random-token'
@@ -54,7 +56,9 @@ export M2W_TOKEN='replace-with-a-long-random-token'
   -image-base https://deploy.example.net/windows11 -open=false
 ```
 
-Replace `deploy.example.net` with your host. Permit TCP 8080 from the deployment network. On Windows, set `$env:M2W_TOKEN` and pass the same flags to `minute2win-server.exe`. Use a trusted deployment network: the token gates mutations, while state and boot routes remain reachable without it. HTTP does not encrypt the token; use network isolation or an appropriately configured TLS front end.
+Replace `deploy.example.net` with your host (the server refuses the placeholder). Permit TCP 8080 from the deployment network. On Windows, set `$env:M2W_TOKEN` and pass the same flags to `minute2win-server.exe`.
+
+The token is for you, not for the machines being imaged: arming and disarming need it, while the routes a booting machine uses (`/boot/<mac>`, `/manifest/<mac>`, and the engine's `/api/report`, which has its own per-deployment key) do not. Use a trusted deployment network: state and boot routes remain reachable without the token. `-insecure-no-token` lets the server listen on the network without a token; use it only on an isolated lab network where anyone who can reach the port may wipe machines. HTTP does not encrypt the token; use network isolation or an appropriately configured TLS front end.
 
 Choose one boot route:
 
@@ -64,7 +68,7 @@ Choose one boot route:
 
 ## 6. Arm once and observe
 
-Confirm the VM's MAC and that its disk is disposable. In the console enter the token, select your profile, and arm that MAC. Boot it through iPXE. Requesting `/boot/<mac>` consumes the arm; the deployment appears on the board.
+Confirm the VM's MAC and that its disk is disposable. In the console enter the token, select your profile, and arm that MAC. Boot it through iPXE. iPXE requests `/boot/<mac>` and follows the one-time URL it is given, which consumes the arm; the deployment appears on the board.
 
 If the boot fails after consumption, diagnose it before re-arming. Disarming cannot cancel an already started deployment. In WinPE, any key during the countdown aborts; a zero countdown removes that opportunity.
 

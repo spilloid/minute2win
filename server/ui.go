@@ -96,14 +96,10 @@ func (s *Server) uiDeployments(w http.ResponseWriter, r *http.Request) {
 	render(w, "deployments", cards)
 }
 
-func (s *Server) uiTokenOK(r *http.Request) bool {
-	return s.Token == "" || tokenEqual(r.PostFormValue("token"), s.Token)
-}
-
 func (s *Server) uiArm(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
-	if !s.uiTokenOK(r) {
-		render(w, "msg", &msg{"err", "Not armed: token required."})
+	if why, _ := s.operatorRefusal(r, r.PostFormValue("token")); why != "" {
+		render(w, "msg", &msg{"err", "Not armed: " + why + "."})
 		return
 	}
 	a, err := s.doArm(r.PostFormValue("mac"), r.PostFormValue("manifest"))
@@ -120,8 +116,8 @@ func (s *Server) uiArm(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) uiDisarm(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
-	if !s.uiTokenOK(r) {
-		render(w, "msg", &msg{"err", "Not disarmed: token required."})
+	if why, _ := s.operatorRefusal(r, r.PostFormValue("token")); why != "" {
+		render(w, "msg", &msg{"err", "Not disarmed: " + why + "."})
 		return
 	}
 	mac, ok := normMAC(r.PostFormValue("mac"))

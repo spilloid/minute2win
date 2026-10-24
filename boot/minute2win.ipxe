@@ -5,8 +5,13 @@
 # (bcdboot also puts Windows Boot Manager first in the UEFI order, which normally prevents that loop, but firmware with a
 # forced network-first or USB-first policy ignores it.)
 # The manifest initrd picks the deployment profile; wimboot places it at X:\Windows\System32\manifest.json.
+#
+# m2w-base is YOUR boot-asset folder (wimboot, BCD, boot.sdi, boot.wim, minute2win/). There is no default host: set m2w-base
+# before chaining this script, or let `tools/stage.sh <outdir> <base>` write it into the staged copy. Unset, it boots nothing.
 
-set base https://boot.spillerstech.us/windows11
+isset ${m2w-base} || set m2w-base @M2W_BASE@
+iseq ${m2w-base} @M2W_BASE@ && goto nobase ||
+set base ${m2w-base}
 isset ${m2w-manifest} || set m2w-manifest win11-pro
 
 kernel ${base}/wimboot
@@ -16,3 +21,9 @@ initrd --name manifest.json ${base}/minute2win/manifests/${m2w-manifest}.json ma
 initrd ${base}/boot.wim boot.wim
 
 boot
+
+:nobase
+echo minute2win: m2w-base is not set, so there is nothing to boot. Not deploying.
+echo Set it to your boot-asset URL before chaining this script (set m2w-base https://<your host>/windows11),
+echo or stage the script with: tools/stage.sh <outdir> https://<your host>/windows11
+exit 1

@@ -4,7 +4,7 @@
 # uploading files, not rebuilding WinPE.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Yes', Justification = 'Accepted so older kvm-it scripts keep working')]
 param(
-    [string]$Base = 'https://boot.spillerstech.us/windows11',
+    [string]$Base = '',   # your boot-asset URL (the folder holding install.ps1 and minute2win/); no default
     [string]$Manifest = '',
     [int]$Disk = -1,
     [string]$AdminUser = '',
@@ -12,6 +12,9 @@ param(
     [switch]$Yes
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Base) {
+    throw 'install.ps1 needs -Base <your boot-asset URL> (the folder holding install.ps1 and minute2win/). There is no default host. Build-WinPE.ps1 -Base passes it on every boot.'
+}
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $injected = 'X:\Windows\System32\manifest.json'
 if (!(Test-Path $injected) -and !$Manifest) {

@@ -5,11 +5,18 @@
 # -Manual: startnet.cmd fetches the loader but leaves a prompt instead of deploying (for debugging a boot image).
 param(
     [string]$Work = 'C:\WinPE_minute2win',
-    [string]$Base = 'https://boot.spillerstech.us/windows11',
+    [string]$Base = '',   # your boot-asset URL (the folder holding install.ps1 and minute2win/); no default
     [string]$Drivers = '',
     [switch]$Manual
 )
 $ErrorActionPreference = 'Stop'
+# Check -Base before anything is deleted: there is no default host, and WinPE runs whatever install.ps1 it finds there with wipe rights.
+if (-not $Base -or $Base -notmatch '^https?://[^/\s"]+(/[^\s"]*)?$') {
+    throw '-Base must be the http(s) URL of your boot-asset folder (where install.ps1 and minute2win/ are hosted), for example -Base https://deploy.lab.internal/windows11. There is no default host.'
+}
+if ($Base -match '^https?://([^/:]+\.)?(example\.(com|net|org)|example|invalid)([/:]|$)') {
+    throw "-Base $Base is the documentation's placeholder host; use your own boot-asset host."
+}
 
 if (Test-Path $Work) { Remove-Item $Work -Recurse -Force }
 copype amd64 $Work

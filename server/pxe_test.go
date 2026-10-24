@@ -179,7 +179,7 @@ func TestPXEArmLifecycle(t *testing.T) {
 			t.Fatalf("discover %d: %d", i, a)
 		}
 	}
-	f.do(t, "GET", "/boot/"+armedMAC, "", "") // /boot consumes the arm
+	f.boot(t, armedMAC) // /boot consumes the arm
 	if a := disc(); a != pxeNotArmed {
 		t.Fatalf("after /boot consumed the arm, PXE still answered (%d): a PXE-first machine would re-wipe", a)
 	}
@@ -513,7 +513,7 @@ func TestPXEEndToEndLoopback(t *testing.T) {
 		t.Fatalf("iPXE stage: %+v", r)
 	}
 
-	f.do(t, "GET", "/boot/"+armedMAC, "", "")
+	f.boot(t, armedMAC)
 	client.WriteToUDP(pxeDiscover(armedMAC, 7).bytes(), p.DHCPAddr())
 	if r := recvDHCP(t, client, 300*time.Millisecond); r != nil {
 		t.Fatal("offer after /boot consumed the arm")

@@ -2,9 +2,9 @@ name: Documentation
 on:
   push:
     branches: [main]
-    paths: ['docs/**', '.github/workflows/pages.yml']
+    paths: ['docs/**', 'VERSION', 'tests/site-version.sh', '.github/workflows/pages.yml']
   pull_request:
-    paths: ['docs/**', '.github/workflows/pages.yml']
+    paths: ['docs/**', 'VERSION', 'tests/site-version.sh', '.github/workflows/pages.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Product page names the VERSION release (STD-003)
+        run: tests/site-version.sh
       - name: Build public documentation
         uses: actions/jekyll-build-pages@v1
         with:

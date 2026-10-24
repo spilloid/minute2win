@@ -29,7 +29,7 @@ func TestPXERecheckBeforeSend(t *testing.T) {
 			hook := func() {
 				switch change {
 				case "boot":
-					f.do(t, "GET", "/boot/"+armedMAC, "", "")
+					f.boot(t, armedMAC)
 				case "disarm":
 					f.s.doDisarm(armedMAC)
 				case "expire":

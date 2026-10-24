@@ -33,6 +33,10 @@ and does not reboot.
 
 Profiles are the filename without `.json`. The server offers only JSON files directly inside its manifest directory. Templates in `manifests/examples/` are not offered. Copy a template to your own manifest directory and replace its image URL and SHA-256 before use.
 
-The shipped `win11-pro` profile points to a maintainer-controlled host with restricted access. It is a reference profile, not a public Windows image download service. Supply your own licensed image and verify its hash. ARM64 PXE file selection does not establish ARM64 Windows deployment support: the supplied WinPE builder builds amd64.
+The shipped `win11-pro` profile is a template: its image URL is the placeholder `https://your-image-host.invalid/windows11/install.wim` and its hash is all zeros. Supply your own licensed image, set its URL and SHA-256, and the server will arm it. (Releases up to 0.1.2 shipped it pointing at the maintainer's restricted host instead.)
 
-Save server profile JSON as UTF-8 **without a byte-order mark**. Windows PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM; use `[IO.File]::WriteAllText($path, $json, (New-Object Text.UTF8Encoding($false)))` or an editor configured for UTF-8 without BOM. A malformed profile may be listed and armed, but manifest delivery fails and consumes the arm; correct the file before deliberately re-arming.
+When arming, the server refuses a profile that is not valid JSON (a byte-order mark included), whose `image.uri` is missing, not `https://`, or on a documentation placeholder host (`example.com`, `example.net`, `example.org`, `*.example`, `*.invalid`), or whose `image.sha256` is not 64 hex digits or is all zeros. The refusal names the profile and the problem. This is not the engine's full validation, which still runs in WinPE before the disk is touched.
+
+ARM64 PXE file selection does not establish ARM64 Windows deployment support: the supplied WinPE builder builds amd64.
+
+Save server profile JSON as UTF-8 **without a byte-order mark**. Windows PowerShell 5.1 `Set-Content -Encoding UTF8` adds a BOM; use `[IO.File]::WriteAllText($path, $json, (New-Object Text.UTF8Encoding($false)))` or an editor configured for UTF-8 without BOM. A malformed profile is still listed in the console, but arming it is refused with the JSON error.

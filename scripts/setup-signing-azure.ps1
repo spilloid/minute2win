@@ -16,7 +16,7 @@ Does everything in docs/code-signing.md that can be scripted:
      <GitHub's subject prefix for the repo>:environment:<Environment>, so no
      secret is ever stored.
   4. Grants that service principal "Artifact Signing Certificate Profile Signer"
-     on the certificate profile only — not the account, not the subscription.
+     on the certificate profile only; not the account, not the subscription.
   5. Creates the GitHub environment and sets the signing variables and the three
      Azure identifiers as environment-scoped values, so only a job that declares
      that environment can read them.

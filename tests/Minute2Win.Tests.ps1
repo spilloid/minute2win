@@ -12,6 +12,13 @@ Describe 'scripts parse' {
         [void][System.Management.Automation.Language.Parser]::ParseFile($_, [ref]$null, [ref]$errs)
         $errs | Should -BeNullOrEmpty
     }
+    # Windows PowerShell 5.1 (WinPE, a stock Windows 11) reads a file without a BOM as the ANSI code page, so a UTF-8 em dash
+    # inside a string becomes a closing quote and the script stops parsing. pwsh 7, which CI uses, reads UTF-8 and never notices.
+    It '<_> is ASCII, or carries a UTF-8 BOM, so Windows PowerShell 5.1 parses it the same' -ForEach @(Get-ChildItem (Split-Path $PSScriptRoot -Parent) -Recurse -Include *.ps1, *.psm1, *.psd1 | ForEach-Object FullName) {
+        $bytes = [IO.File]::ReadAllBytes($_)
+        $bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+        if (-not $bom) { @($bytes | Where-Object { $_ -ge 0x80 }).Count | Should -Be 0 }
+    }
 }
 
 Describe 'Get-M2WValue' {
@@ -146,7 +153,7 @@ Describe 'Test-M2WCapacity (checked before the wipe)' {
 Describe 'Add-M2WSetupComplete' {
     It 'prepends its line and keeps an existing script byte for byte' {
         $f = Join-Path ([IO.Path]::GetTempPath()) "sc-$([guid]::NewGuid()).cmd"
-        $old = [byte[]](0x40, 0x65, 0x63, 0x68, 0x6f, 0x20, 0xC3, 0xA9, 0x0D, 0x0A, 0x65, 0x78, 0x69, 0x74, 0x0D, 0x0A) # "@echo é" (UTF-8), "exit"
+        $old = [byte[]](0x40, 0x65, 0x63, 0x68, 0x6f, 0x20, 0xC3, 0xA9, 0x0D, 0x0A, 0x65, 0x78, 0x69, 0x74, 0x0D, 0x0A) # "@echo " plus e-acute as UTF-8 (C3 A9), then "exit"
         [IO.File]::WriteAllBytes($f, $old)
         Add-M2WSetupComplete $f
         $new = [IO.File]::ReadAllBytes($f)
@@ -197,5 +204,41 @@ Describe 'boot loader fails closed without the selected manifest' {
     It 'stops before downloading or launching the installer when injection is absent' {
         Mock Test-Path { $false }
         { & (Join-Path $repo 'boot/install.ps1') -Base 'http://127.0.0.1:1' } | Should -Throw '*Boot manifest was not injected*'
+    }
+}
+
+Describe 'no default boot-asset host' {
+    # Before 2026-10-19 the loader and the WinPE builder defaulted -Base to the maintainer's host, so a forgotten -Base ran someone
+    # else's engine with wipe rights.
+    It 'install.ps1 refuses to run without -Base, before downloading anything' {
+        Mock Test-Path { $true }
+        { & (Join-Path $repo 'boot/install.ps1') } | Should -Throw '*-Base*'
+    }
+    It 'Build-WinPE.ps1 refuses to run without -Base, before deleting its work folder' {
+        $work = Join-Path ([IO.Path]::GetTempPath()) ('m2w-build-' + [guid]::NewGuid())
+        New-Item -ItemType Directory $work | Out-Null
+        try {
+            { & (Join-Path $repo 'build/Build-WinPE.ps1') -Work $work } | Should -Throw '*-Base*'
+            { & (Join-Path $repo 'build/Build-WinPE.ps1') -Work $work -Base 'https://deploy.example.net/windows11' } | Should -Throw '*placeholder*'
+            { & (Join-Path $repo 'build/Build-WinPE.ps1') -Work $work -Base 'ftp://boot.lab.internal/w' } | Should -Throw '*-Base*'
+            Test-Path $work | Should -BeTrue
+        }
+        finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    It 'the static iPXE script refuses to boot until m2w-base is set' {
+        $ipxe = Get-Content (Join-Path $repo 'boot/minute2win.ipxe') -Raw
+        $ipxe | Should -Not -Match '(?m)^\s*(isset .*\|\| )?set (m2w-)?base https?://'
+        $ipxe | Should -Match 'iseq \$\{m2w-base\} @M2W_BASE@ && goto nobase'
+        $ipxe | Should -Match '(?m)^:nobase\r?\n(echo .*\r?\n)+exit 1'
+    }
+    It 'no boot, build, staging or test script names the maintainer host' {
+        $hits = Get-ChildItem (Join-Path $repo 'boot'), (Join-Path $repo 'build'), (Join-Path $repo 'tools'), (Join-Path $repo 'tests/vm'), (Join-Path $repo 'manifests') -File -Recurse |
+            Select-String -SimpleMatch 'spillerstech'
+        @($hits).Count | Should -Be 0 -Because ($hits -join '; ')
+    }
+    It 'the shipped profile has no live image URL or hash' {
+        $m = Get-Content (Join-Path $repo 'manifests/win11-pro.json') -Raw | ConvertFrom-Json
+        $m.image.uri | Should -Match '^https://[^/]+\.invalid/'
+        $m.image.sha256 | Should -Be ('0' * 64)
     }
 }

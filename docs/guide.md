@@ -31,4 +31,4 @@ A self-hosted console and boot toolkit for zero-touch Windows installation.
 
 [Source and downloads](https://github.com/spilloid/minute2win) · [Contributing](https://github.com/spilloid/minute2win/blob/main/CONTRIBUTING.md) · [Security](https://github.com/spilloid/minute2win/blob/main/SECURITY.md)
 
-GitHub Pages hosts this documentation only. It does not host deployment images or run the Minute2Win server.
+GitHub Pages hosts this documentation and the [product overview](https://spilloid.github.io/minute2win/) only. It does not host deployment images or run the Minute2Win server.
