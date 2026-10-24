@@ -4,7 +4,7 @@ title: Getting started
 
 # Getting started
 
-This guide describes the intended setup. The Windows deployment path is not yet verified end to end; validate it on a disposable VM before hardware.
+This guide describes the setup on any platform. For a complete worked example on one Windows PC, with every command and what each screen shows, follow the [Walkthrough](WALKTHROUGH.md). The full chain has been verified on one disposable UEFI VM (see [Status](STATUS.md)); validate it on a disposable VM before hardware.
 
 ## 1. Gather prerequisites
 

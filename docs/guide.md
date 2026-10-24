@@ -6,7 +6,7 @@ title: Minute2Win documentation
 
 A self-hosted console and boot toolkit for zero-touch Windows installation.
 
-**Start here:** [Getting started](GETTING_STARTED.md) takes you from an extracted server release to an operator-owned deployment configuration. [Status](STATUS.md) explains what has been verified and what still needs hardware or setup validation.
+**Start here:** [Walkthrough](WALKTHROUGH.md) builds a complete lab on one Windows PC, from downloads to a Hyper-V VM that reimages itself when you arm it, with every command, expected output and an FAQ. [Getting started](GETTING_STARTED.md) is the shorter, platform-neutral version and takes you from an extracted server release to an operator-owned deployment configuration. [Status](STATUS.md) explains what has been verified and what still needs hardware or setup validation.
 
 > Deployment erases the selected disk. Use a disposable VM for initial validation. The one-minute deployment goal has not been measured.
 
@@ -20,6 +20,7 @@ A self-hosted console and boot toolkit for zero-touch Windows installation.
 
 | Guide | What it covers |
 | --- | --- |
+| [Walkthrough](WALKTHROUGH.md) | One Windows PC, end to end: Hyper-V target, built-in PXE, image prep, FAQ and advice |
 | [Getting started](GETTING_STARTED.md) | Console preview, prerequisites, profiles, arming and first deployment |
 | [Boot assets](BOOT_ASSETS.md) | WinPE build, hosting layout, updating scripts and static iPXE |
 | [Manifests](MANIFESTS.md) | Image, disk, OOBE, tenant, guard and reporting settings |

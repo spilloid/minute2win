@@ -17,7 +17,7 @@
   <div class="shell">
     <nav aria-label="Documentation">
       <p class="nav-title">Documentation</p>
-      {% assign guides = 'guide.md,GETTING_STARTED.md,BOOT_ASSETS.md,MANIFESTS.md,SERVER.md,API.md,TROUBLESHOOTING.md,STATUS.md,RELEASING.md' | split: ',' %}
+      {% assign guides = 'guide.md,WALKTHROUGH.md,GETTING_STARTED.md,BOOT_ASSETS.md,MANIFESTS.md,SERVER.md,API.md,TROUBLESHOOTING.md,STATUS.md,RELEASING.md' | split: ',' %}
       {% for path in guides %}
         {% assign guide = site.pages | where: 'path', path | first %}
         <a href="{{ guide.url | relative_url }}" {% if page.path == path %}aria-current="page"{% endif %}>{{ guide.title | escape }}</a>
@@ -28,7 +28,7 @@
       <a href="https://github.com/spilloid/minute2win/issues">Issues ↗</a>
     </nav>
     <main id="content">
-      <div class="status">Early release · Windows deployment not yet verified end to end</div>
+      <div class="status">Early release · verified end to end on one VM; physical hardware not yet</div>
       {{ content }}
       <footer>MIT licensed · <a href="https://github.com/spilloid/minute2win/blob/main/docs/{{ page.path }}">Edit this page</a></footer>
     </main>
