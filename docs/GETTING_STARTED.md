@@ -4,7 +4,7 @@ title: Getting started
 
 # Getting started
 
-This guide describes the intended setup. The Windows deployment path is not yet verified end to end; validate it on a disposable VM before hardware.
+This guide describes the setup on any platform. For a complete worked example on one Windows PC, with every command and what each screen shows, follow the [Walkthrough](WALKTHROUGH.md). The full chain has been verified on one disposable UEFI VM (see [Status](STATUS.md)); validate it on a disposable VM before hardware.
 
 ## 1. Gather prerequisites
 
@@ -16,7 +16,7 @@ Supply your own licensed Windows image, WinPE built with the Windows ADK and Win
 
 Extract a [server release](https://github.com/spilloid/minute2win/releases) and verify its checksums. Start it with `-listen 127.0.0.1:8080`. Open the console at <http://localhost:8080>. Windows opens the browser by default; Linux users open it themselves.
 
-The current source listens on `127.0.0.1:8080` by default, and without `-image-base` it refuses every arm, so a preview cannot start a deployment. Release 0.1.2 and earlier listened on every interface by default and did not check where requests came from: with those builds pass `-listen 127.0.0.1:8080` explicitly and set `M2W_TOKEN` even for a preview, or any web page open in your browser could arm a machine.
+Since 0.2.0 the server listens on `127.0.0.1:8080` by default, and without `-image-base` it refuses every arm, so a preview cannot start a deployment. Release 0.1.2 and earlier listened on every interface by default and did not check where requests came from: with those builds pass `-listen 127.0.0.1:8080` explicitly and set `M2W_TOKEN` even for a preview, or any web page open in your browser could arm a machine.
 
 ![The console on a phone-width screen in dark mode, with two deployments on the board.](assets/screenshots/phone-dark.png)
 

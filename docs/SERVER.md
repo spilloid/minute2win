@@ -68,7 +68,7 @@ runs the `chain .../boot/${net0/mac}` line above.
 
 `M2W_TOKEN` is an environment variable, not a command-line flag. Boot assets and the image are served separately from the console. Read [Getting started](GETTING_STARTED.md) for the complete setup.
 
-**Changed after 0.1.2.** Release 0.1.2 and earlier listened on every interface by default, treated the token as optional,
+**Changed in 0.2.0.** Release 0.1.2 and earlier listened on every interface by default, treated the token as optional,
 defaulted `-image-base` to the maintainer's restricted host and did not check where a request came from. With those builds, pass
 `-listen` and `-image-base` explicitly and always set `M2W_TOKEN`, even on loopback: without a token, any web page open in the
 operator's browser could arm a machine.

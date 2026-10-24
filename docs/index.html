@@ -4,132 +4,185 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>minute2win: arm a machine, network boot it, install Windows</title>
-  <meta name="description" content="Self-hosted Windows deployment: arm a machine by MAC address in a small web console, and its next network boot installs Windows from your own SHA-256-verified image, with every phase on a live board. Free and MIT licensed. Early release.">
-  <meta property="og:title" content="minute2win: arm a machine, network boot it, install Windows">
-  <meta property="og:description" content="A self-hosted console, an iPXE boot chain and a WinPE engine. One arm is one deployment. Early release, MIT licensed.">
+  <meta name="description" content="Self-hosted, zero-touch Windows deployment: arm a machine by MAC address, and its next network boot installs Windows from your own SHA-256-verified image, with every phase on a live board. Free and MIT licensed. Early release.">
+  <meta property="og:title" content="minute2win: machine, become new.">
+  <meta property="og:description" content="Arm a MAC. Network boot it. Windows, installed from your own verified image, every phase on the clock. One small server, no USB stick, no cloud. Early release, MIT licensed.">
   <meta property="og:url" content="https://spilloid.github.io/minute2win/">
   <meta property="og:image" content="https://spilloid.github.io/minute2win/assets/screenshots/deployed-desktop.png">
-  <meta name="theme-color" content="#096b66">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23096b66'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='21' font-weight='700' fill='white' text-anchor='middle'%3E2%3C/text%3E%3C/svg%3E">
+  <meta name="theme-color" content="#07080c">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307080c'/%3E%3Ctext x='16' y='24' font-family='Arial,sans-serif' font-size='22' font-weight='800' fill='%23ffd76a' text-anchor='middle'%3E2%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@500;700&display=swap">
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <header class="header wrap">
-    <a class="brand" href="./" aria-label="minute2win home">minute<span>2</span>win</a>
-    <nav aria-label="Main navigation">
-      <a class="hide-sm" href="#how">How it works</a>
-      <a href="#safety">Safety</a>
-      <a class="hide-sm" href="#status">Status</a>
-      <a href="guide.html">Docs</a>
-      <a class="nav-github" href="https://github.com/spilloid/minute2win">GitHub <span aria-hidden="true">&#8599;</span></a>
-    </nav>
+  <header class="header">
+    <div class="wrap header-in">
+      <a class="brand" href="./" aria-label="minute2win home">minute<span>2</span>win</a>
+      <nav aria-label="Main navigation">
+        <a class="hide-sm" href="#how">How it works</a>
+        <a class="hide-sm" href="#safety">Safety</a>
+        <a href="WALKTHROUGH.html">Set it up</a>
+        <a href="guide.html">Docs</a>
+        <a class="nav-cta" href="https://github.com/spilloid/minute2win">GitHub <span aria-hidden="true">&#8599;</span></a>
+      </nav>
+    </div>
   </header>
 
   <main id="main">
-    <section class="hero wrap" aria-labelledby="hero-title">
-      <div>
-        <p class="eyebrow"><span class="dot"></span>Self-hosted Windows deployment</p>
-        <h1 id="hero-title">Arm it. Boot it.<br><em>Windows, installed.</em></h1>
-        <p class="lead">Type a MAC address, pick a profile, and that machine&rsquo;s next network boot installs Windows from your own verified image.</p>
-        <p class="hero-description">minute2win is one small server with a web console, an iPXE boot chain and a WinPE engine. No USB stick, nobody at the keyboard while it images, and every phase lands on a live board.</p>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="stage">
+        <canvas id="boot" aria-hidden="true"></canvas>
+        <div class="stage-hud">
+          <span class="live"><span class="dot"></span><span class="hide-sm">Boot sequence &middot;&nbsp;</span>simulation</span>
+          <span class="hud-buttons">
+            <button type="button" id="boot-pause" aria-pressed="false">Pause</button>
+            <button type="button" id="boot-replay">Replay</button>
+          </span>
+        </div>
+        <p class="sr-only">Animation: a machine network boots, minute2win answers because the machine is armed, WinPE starts, and the deployment phases tick off on a stopwatch at the one-minute target pace before the screen bursts into gold with the words &ldquo;Vroom vroom. Machine become new. Arm it. Boot it. Go go go.&rdquo; It is a simulation; one minute is the goal, not a measured result.</p>
+      </div>
+
+      <div class="wrap hero-copy">
+        <p class="eyebrow"><span class="dot"></span>Zero-touch Windows deployment &middot; self-hosted &middot; free</p>
+        <h1 id="hero-title">Arm it. Boot it.<br><span class="foil">Machine, become new.</span></h1>
+        <p class="lead">Type a MAC address. Pick a profile. That machine&rsquo;s next network boot wipes it and installs Windows from <em>your</em> SHA-256-verified image, while every phase lands on a live board with its lap time. No USB stick. Nobody at the keyboard. One small server you own.</p>
+        <div class="actions">
+          <a class="button primary" href="WALKTHROUGH.html">Set it up, start to finish <span aria-hidden="true">&rarr;</span></a>
+          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.2.0">Download v0.2.0 <span aria-hidden="true">&darr;</span></a>
+        </div>
         <div class="warning" role="note">
           <span class="warn-icon" aria-hidden="true">!</span>
           <p><strong>Deployment erases the selected internal disk without a confirmation prompt.</strong> That is the point: arming a machine is the authorization to reimage it. Start with a disposable VM, use your own boot files and Windows image, and set <code>M2W_TOKEN</code> before the server is reachable from your network.</p>
         </div>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/spilloid/minute2win/releases/tag/v0.1.2">Download v0.1.2 <span aria-hidden="true">&darr;</span></a>
-          <a class="text-link" href="GETTING_STARTED.html">Getting started <span aria-hidden="true">&rarr;</span></a>
-        </div>
-        <ul class="hero-points" aria-label="At a glance">
-          <li>Runs on your network, no cloud account</li>
-          <li>One arm is one deployment</li>
-          <li>Every phase timed</li>
-        </ul>
-        <p class="hero-meta">v0.1.2 &middot; early release &middot; Signed Windows x64 server &middot; Linux amd64/arm64 and AppImage &middot; MIT licensed</p>
+        <p class="hero-meta">v0.2.0 &middot; early release &middot; signed Windows x64 server &middot; Linux amd64/arm64 + AppImage &middot; MIT licensed</p>
       </div>
-
-      <figure class="runsheet" aria-labelledby="runsheet-cap">
-        <div class="runsheet-head"><span>One deployment</span><span>Arm &rarr; installed disk</span></div>
-        <ol>
-          <li><span class="n">01</span><div><strong>Arm a MAC with a profile</strong><span class="d">In the console or the JSON API. Unused arms expire.</span></div></li>
-          <li><span class="n">02</span><div><strong>Network boot, arm consumed</strong><span class="d">iPXE asks the server for its script and follows a one-time link to it. That uses up the arm, so the next boot is a normal one.</span></div></li>
-          <li><span class="n">03</span><div><strong>Check before the wipe</strong><span class="d">Valid manifest, reachable image, enough room, an eligible internal disk. If any of these fails, the disk is untouched.</span></div></li>
-          <li class="guard"><span class="n">04</span><div><strong>Ten-second abort countdown</strong><span class="d">Shown on screen. Any key stops it. Then the wipe begins.</span></div></li>
-          <li><span class="n">05</span><div><strong>Partition, download, verify, apply</strong><span class="d">GPT layout, SHA-256 check of the image, DISM apply and bcdboot. The hash can only be checked after the download, so a wrong hash stops here, on an erased disk.</span></div></li>
-          <li><span class="n">06</span><div><strong>Reboot into Windows</strong><span class="d">Logs copied to the new disk, Windows Setup finishes, a first-boot script runs once.</span></div></li>
-        </ol>
-        <figcaption id="runsheet-cap"><span class="dot"></span>Each step reports to the board with its lap time.</figcaption>
-      </figure>
     </section>
 
     <div class="proof wrap">
       <span class="proof-icon" aria-hidden="true">&#10003;</span>
-      <p><strong>Seen working on one disposable UEFI VM, end to end.</strong> A Proxmox OVMF virtual machine booted through Windows-hosted PXE, imaged Windows 11 Pro, booted its new disk and reached OOBE, and the first-boot script ran on its own. Physical hardware and Secure Boot have not been tested yet.</p>
-      <a href="STATUS.html">Full verification record <span aria-hidden="true">&rarr;</span></a>
+      <p><strong>It has run end to end.</strong> A disposable Proxmox UEFI VM network booted from a Windows-hosted minute2win, imaged Windows 11 Pro, booted its new disk, reached OOBE and ran its first-boot script on its own. Physical hardware and Secure Boot are next.</p>
+      <a href="STATUS.html">The verification record <span aria-hidden="true">&rarr;</span></a>
     </div>
 
-    <section class="section wrap" aria-labelledby="get-title">
-      <div class="section-heading">
-        <div><p class="eyebrow">What you get</p><h2 id="get-title">A deployment console<br>you <em>actually own.</em></h2></div>
-        <p>For IT people who reimage the same kinds of machines again and again, and would rather run one binary than a deployment platform.</p>
-      </div>
-      <div class="features">
-        <article class="card"><span class="small-label">Console</span><h3>One binary, one web page</h3><p>A single Go server with the web console and JSON API built in. Arm, disarm and watch deployments from a browser, including a phone.</p></article>
-        <article class="card"><span class="small-label">Control</span><h3>One arm, one deployment</h3><p>An arm is used up when the machine asks for its boot script. Unarmed machines get no deployment and boot their own disk.</p></article>
-        <article class="card"><span class="small-label">Images</span><h3>Pinned by SHA-256</h3><p>A manifest names the image URL, its exact hash, the edition and the disk needs. A wrong or corrupted download stops the deployment before Windows is applied.</p></article>
-        <article class="card"><span class="small-label">Boot</span><h3>Built-in PXE, if you want it</h3><p>Optional proxyDHCP and read-only TFTP that answer only armed machines, alongside your normal DHCP server. Your existing iPXE or USB route works too.</p></article>
-        <article class="card"><span class="small-label">Visibility</span><h3>Every phase on the board</h3><p>Lap times for each phase, live. Logs and <code>timing.json</code> are kept on the installed disk under <code>C:\Windows\Logs\minute2win</code>.</p></article>
-        <article class="card"><span class="small-label">Upkeep</span><h3>Update without rebuilding WinPE</h3><p>WinPE downloads the deployment engine at boot, so script updates do not need a new boot image unless its boot configuration changes.</p></article>
-      </div>
-    </section>
-
-    <section class="section wrap" aria-labelledby="compare-title" style="padding-top:0">
-      <div class="section-heading">
-        <div><p class="eyebrow">Why bother</p><h2 id="compare-title">Stop walking to the machine<br>with a <em>USB stick.</em></h2></div>
-        <p>Reimaging is usually the same steps every time. minute2win turns them into a decision at your desk and a record you can read afterwards.</p>
+    <section class="section wrap" aria-labelledby="pitch-title">
+      <div class="pitch">
+        <div>
+          <p class="eyebrow">Why this exists</p>
+          <h2 id="pitch-title">Reimaging a PC should take<br><span class="foil">one decision,</span> not one afternoon.</h2>
+        </div>
+        <div class="pitch-copy">
+          <p>You know the ritual. Find the USB stick. Wonder if it has the current image. Walk over. Mash F12. Click through Setup. Wait. Click some more. Walk back. Do it again for the next one.</p>
+          <p><strong>minute2win replaces the ritual with a button.</strong> You decide at your desk, or on your phone, which machine gets a fresh Windows. The machine does the rest by itself: network boot, checks, countdown, partition, verified download, apply, reboot, first-boot script. You read the lap times afterwards.</p>
+        </div>
       </div>
       <div class="compare">
-        <article class="old"><span class="tag next">The usual way</span>
+        <article class="old"><span class="tag dim">The ritual</span>
           <ul>
-            <li>Find the stick, hope it has the current image</li>
-            <li>Walk over, change the boot order, click through the installer</li>
-            <li>Not quite sure which image or edition ended up on the disk</li>
+            <li>Hunt for the stick, hope it&rsquo;s current</li>
+            <li>Walk over, change the boot order, click through Setup</li>
+            <li>Not quite sure which image or edition you got</li>
             <li>No record of what happened or how long it took</li>
           </ul>
         </article>
         <article class="new"><span class="tag">With minute2win</span>
           <ul>
-            <li>Arm the machine from the console: a MAC address and a profile</li>
-            <li>It network boots and images itself, no one at the keyboard</li>
-            <li>The image is the one your manifest pins by SHA-256</li>
-            <li>Every phase is timed on the board, and logs stay on the new disk</li>
+            <li>Arm a MAC address with a profile. Done deciding.</li>
+            <li>It network boots and images itself. No one at the keyboard.</li>
+            <li>The image is exactly the one your manifest pins by SHA-256</li>
+            <li>Every phase timed on the board; logs stay on the new disk</li>
           </ul>
         </article>
       </div>
     </section>
 
+    <section id="how" class="section band" aria-labelledby="how-title">
+      <div class="wrap">
+        <div class="section-heading">
+          <div><p class="eyebrow">How it works</p><h2 id="how-title">Three moves.<br>One <span class="foil">deliberate</span> wipe.</h2></div>
+          <p>You bring a licensed Windows image, WinPE from the Windows ADK, wimboot and iPXE. minute2win brings the console, the boot policy and the engine.</p>
+        </div>
+        <div class="steps">
+          <article><span class="step-number">01</span><h3>Arm</h3><p>Enter a MAC address and a deployment profile in the console, or <code>POST /api/armed</code>. That is the whole decision. Arms expire on their own (two hours by default).</p></article>
+          <article><span class="step-number">02</span><h3>Boot</h3><p>The machine network boots. minute2win&rsquo;s built-in PXE (or your own iPXE) hands it WinPE and its manifest, and the arm is used up on the spot. Unarmed machines are ignored and boot their own disk.</p></article>
+          <article><span class="step-number">03</span><h3>Watch</h3><p>The engine checks, counts down, partitions, downloads, verifies, applies and reboots, reporting every phase to the board. Windows Setup and a one-time first-boot script finish the job.</p></article>
+        </div>
+<pre class="chain" aria-label="The deployment chain">Arm MAC + profile &rarr; network boot &rarr; /boot/&lt;mac&gt; &rarr; <b>arm consumed</b>
+  &rarr; wimboot loads WinPE + manifest &rarr; loader downloads the engine
+  &rarr; check image and disk &rarr; <b>10-second abort countdown</b>
+  &rarr; partition &rarr; download + verify SHA-256 &rarr; apply Windows &rarr; bcdboot
+  &rarr; copy logs &rarr; reboot &rarr; Windows Setup &rarr; first-boot bootstrap</pre>
+      </div>
+    </section>
+
+    <section id="pace" class="section wrap" aria-labelledby="pace-title">
+      <div class="section-heading">
+        <div><p class="eyebrow"><span class="dot"></span>The clock</p><h2 id="pace-title">The name is a promise<br>we <span class="foil">measure,</span> not assert.</h2></div>
+        <p>The target: network boot to flashed Windows in about a minute, on an NVMe machine with a fast LAN. Every phase is timed, so you&rsquo;ll see exactly where the seconds go. Here is the one run on record, and where the minute is hiding.</p>
+      </div>
+
+      <figure class="laps" aria-labelledby="laps-cap">
+        <div class="laps-head">
+          <span>Lap 1 &middot; recorded run</span>
+          <span class="laps-total">359.4&nbsp;s</span>
+        </div>
+        <div class="lapbar" role="img" aria-label="Recorded run, 359.4 seconds: checks and countdown 17.3 s, partition 6.6 s, download 153 s, apply 176.2 s, finish 6.3 s. The one-minute target line sits at 60 seconds.">
+          <span class="seg s-ready" style="--w:4.81%"><i>checks</i></span>
+          <span class="seg s-part" style="--w:1.84%"></span>
+          <span class="seg s-down" style="--w:42.57%"><i>download 153.0&nbsp;s</i></span>
+          <span class="seg s-apply" style="--w:49.03%"><i>apply 176.2&nbsp;s</i></span>
+          <span class="seg s-done" style="--w:1.75%"></span>
+          <span class="target" style="--x:16.69%"><b>1:00 target</b></span>
+        </div>
+        <dl class="laps-legend">
+          <div><dt>ready</dt><dd>17.3&nbsp;s</dd></div>
+          <div><dt>partitioned</dt><dd>23.9&nbsp;s</dd></div>
+          <div><dt>downloaded</dt><dd>176.9&nbsp;s</dd></div>
+          <div><dt>applied</dt><dd>353.1&nbsp;s</dd></div>
+          <div><dt>done</dt><dd>359.4&nbsp;s</dd></div>
+        </dl>
+        <figcaption id="laps-cap">Cumulative engine times from the board on a 4&nbsp;GB, two-core VM with a virtual SATA disk, pulling an 8.16&nbsp;GB multi-edition image from a remote host. Nothing about that setup is built for speed.</figcaption>
+      </figure>
+
+      <div class="throttle">
+        <div class="throttle-copy">
+          <h3>The network is the throttle.</h3>
+          <p>Download and apply are 92% of that lap. Both are about moving bytes: over the wire, then onto the disk. So here is plain arithmetic (not a measurement) for pulling a ~5&nbsp;GB single-edition image at full line rate:</p>
+          <p class="muted">Then DISM has to write it. That part wants NVMe and real cores, not a two-core VM.</p>
+        </div>
+        <div class="gauges">
+          <div class="gauge"><span class="g-link">1 GbE</span><span class="g-bar"><span style="--w:100%"></span></span><span class="g-val">~40&nbsp;s</span></div>
+          <div class="gauge"><span class="g-link">2.5 GbE</span><span class="g-bar"><span style="--w:40%"></span></span><span class="g-val">~16&nbsp;s</span></div>
+          <div class="gauge hot"><span class="g-link">10 GbE</span><span class="g-bar"><span style="--w:10%"></span></span><span class="g-val">~4&nbsp;s</span></div>
+          <p class="gauge-note">5&nbsp;GB &times; 8 bits &divide; link speed. Real throughput is lower; your image host and disks decide the rest.</p>
+        </div>
+      </div>
+      <p class="callout"><strong>Got NVMe and 10 GbE?</strong> You could post the first sub-minute lap. Run it, read <code>timing.json</code>, and <a href="https://github.com/spilloid/minute2win/issues">tell us the numbers</a>. That is how the name gets earned.</p>
+    </section>
+
     <section id="console" class="section band" aria-labelledby="console-title">
       <div class="wrap">
         <div class="section-heading">
-          <div><p class="eyebrow"><span class="dot"></span>The console</p><h2 id="console-title">Arm. Watch.<br><em>Done.</em></h2></div>
-          <p>One page: arm a machine, see what is armed, and follow each deployment phase by phase. It follows your light or dark setting and works at phone width.</p>
+          <div><p class="eyebrow"><span class="dot"></span>The console</p><h2 id="console-title">Arm. Watch.<br><span class="foil">Done.</span></h2></div>
+          <p>One page: arm a machine, see what is armed, follow each deployment phase by phase. It follows your light or dark setting and works on a phone, so you can arm from the server room floor and watch from anywhere on your network.</p>
         </div>
-        <p class="demo-note"><span aria-hidden="true">&#9432;</span><span><strong>These are demo screenshots from the automated UI test.</strong> The MAC address, the QEMU machine and the 58.1&nbsp;s lap times are test fixtures, not a measured deployment.</span></p>
+        <p class="demo-note"><span aria-hidden="true">&#9432;</span><span><strong>Demo screenshots from the automated UI test.</strong> The MAC address, the QEMU machine and the 58.1&nbsp;s lap times are test fixtures, not a measured deployment.</span></p>
         <div class="shots">
           <figure class="shot">
-            <a href="assets/screenshots/armed-desktop.png"><img class="crop" src="assets/screenshots/armed-desktop.png" width="1280" height="900" loading="lazy" decoding="async" alt="The console after arming a machine: a warning that an armed machine is wiped on its next network boot, the armed list with a Disarm button, and an empty deployments board."></a>
-            <figcaption><h3>Arm for wipe, in plain words</h3>The console says what an arm means before you press the button. Changed your mind? Disarm until the machine boots.</figcaption>
+            <a href="assets/screenshots/armed-desktop.png"><img src="assets/screenshots/armed-desktop.png" width="1280" height="900" loading="lazy" decoding="async" alt="The console after arming a machine: a warning that an armed machine is wiped on its next network boot, the armed list with a Disarm button, and an empty deployments board."></a>
+            <figcaption><h3>&ldquo;Arm for wipe,&rdquo; in plain words</h3>The console says what an arm means before you press it. Changed your mind? Disarm any time before the machine boots.</figcaption>
           </figure>
           <figure class="shot">
-            <a href="assets/screenshots/deployed-desktop.png"><img class="crop" src="assets/screenshots/deployed-desktop.png" width="1280" height="900" loading="lazy" decoding="async" alt="The console after the machine booted and reported: nothing armed, and one deployment card listing each phase's lap time next to a stopwatch."></a>
-            <figcaption><h3>The arm is gone, the board fills in</h3>Once the machine boots, its arm is consumed and its deployment card shows each phase as the engine reports it.</figcaption>
+            <a href="assets/screenshots/deployed-desktop.png"><img src="assets/screenshots/deployed-desktop.png" width="1280" height="900" loading="lazy" decoding="async" alt="The console after the machine booted and reported: nothing armed, and one deployment card listing each phase's lap time next to a stopwatch."></a>
+            <figcaption><h3>The arm is gone, the board fills in</h3>Once the machine boots, its arm is consumed and its card shows every phase as the engine reports it.</figcaption>
           </figure>
         </div>
         <div class="shots-row">
           <div>
-            <h3>Same console, on the phone in your pocket</h3>
-            <p class="muted">Arm from the server room floor, then watch the board while you do something else. The UI test checks phone width in light and dark on every change.</p>
+            <h3>Same console, in your pocket.</h3>
+            <p class="muted">Phone width in light and dark is checked by the UI test on every change.</p>
           </div>
           <div class="phones">
             <figure class="shot"><a href="assets/screenshots/phone-light.png"><img src="assets/screenshots/phone-light.png" width="375" height="869" loading="lazy" decoding="async" alt="The console at phone width in light mode, with two deployments on the board (demo data)."></a></figure>
@@ -139,151 +192,138 @@
       </div>
     </section>
 
-    <section id="how" class="section wrap" aria-labelledby="how-title">
+    <section class="section wrap" aria-labelledby="get-title">
       <div class="section-heading">
-        <div><p class="eyebrow">How it works</p><h2 id="how-title">Three steps.<br>One <em>deliberate</em> wipe.</h2></div>
-        <p>You bring a licensed Windows image, WinPE from the Windows ADK, wimboot and iPXE. minute2win brings the console, the boot policy and the engine.</p>
+        <div><p class="eyebrow">What you get</p><h2 id="get-title">A deployment rig<br>you <span class="foil">actually own.</span></h2></div>
+        <p>For anyone who reimages machines again and again: homelabs, repair benches, classrooms, small IT shops. One binary instead of a deployment platform.</p>
       </div>
-      <div class="steps">
-        <article><span class="step-number">01 / Arm</span><h3>Choose the machine.</h3><p>Enter its MAC address and a deployment profile in the console, or <code>POST /api/armed</code>. With <code>M2W_TOKEN</code> set, arming needs the token.</p><span class="step-detail">Arms expire after two hours by default</span></article>
-        <article><span class="step-number">02 / Boot</span><h3>Let it network boot.</h3><p>iPXE chains <code>/boot/&lt;mac&gt;</code>. An armed machine gets wimboot, WinPE and its manifest; the arm is consumed. Anything else is told to boot its own disk.</p><span class="step-detail">Built-in PXE, dnsmasq or a USB iPXE drive</span></article>
-        <article><span class="step-number">03 / Watch</span><h3>Read the board.</h3><p>The engine checks, counts down, partitions, verifies, applies and reboots, reporting each phase. Windows Setup and a one-time first-boot script follow.</p><span class="step-detail">Logs survive the reboot</span></article>
+      <div class="features">
+        <article class="card"><span class="small-label">Console</span><h3>One binary, one web page</h3><p>A single Go server with the console and JSON API built in. Windows x64 (Authenticode-signed), Linux amd64/arm64 and an AppImage. Works offline.</p></article>
+        <article class="card"><span class="small-label">Control</span><h3>One arm, one deployment</h3><p>An arm is used up the moment the machine asks for its boot script. The next network boot just boots Windows. No reimage loops.</p></article>
+        <article class="card"><span class="small-label">Images</span><h3>Pinned by SHA-256</h3><p>A manifest names the image URL, its exact hash, the edition and the disk needs. A wrong or corrupted download never gets applied.</p></article>
+        <article class="card"><span class="small-label">Boot</span><h3>Built-in PXE, if you want it</h3><p>Optional proxyDHCP and read-only TFTP that answer <em>only</em> armed machines, next to your normal router. Existing iPXE or USB boot works too.</p></article>
+        <article class="card"><span class="small-label">Visibility</span><h3>Every phase on the clock</h3><p>Lap times live on the board. Logs and <code>timing.json</code> stay on the new disk under <code>C:\Windows\Logs\minute2win</code>.</p></article>
+        <article class="card"><span class="small-label">Upkeep</span><h3>Update without rebuilding WinPE</h3><p>WinPE downloads the engine at boot. Change the scripts, and the next deployment uses them.</p></article>
       </div>
-<pre class="chain" aria-label="The deployment chain">Arm MAC + profile &rarr; iPXE requests /boot/&lt;mac&gt; &rarr; arm consumed
-  &rarr; wimboot loads WinPE + manifest &rarr; loader downloads engine
-  &rarr; validate image and capacity &rarr; select disk &rarr; abort countdown
-  &rarr; partition &rarr; download and verify SHA-256 &rarr; apply Windows &rarr; bcdboot
-  &rarr; copy logs &rarr; reboot &rarr; Windows Setup &rarr; first-boot bootstrap</pre>
     </section>
 
     <section id="safety" class="section band" aria-labelledby="safety-title">
       <div class="wrap safety">
         <div class="safety-intro">
           <p class="eyebrow"><span class="dot"></span>Safety</p>
-          <h2 id="safety-title">Destructive by design.<br><em>Guarded</em> by design.</h2>
-          <p>minute2win never asks &ldquo;are you sure?&rdquo; at the machine, because zero-touch means nobody is there to answer. The decision happens when you arm. Everything else is built so that an arm is the only way in, and most setup mistakes stop before the disk is touched. The exception is the image itself: its SHA-256 can only be checked once it is downloaded, after partitioning.</p>
-          <p>These guards do not replace checking which machine you arm.</p>
+          <h2 id="safety-title">Destructive by design.<br><span class="foil">Guarded</span> by design.</h2>
+          <p>minute2win never asks &ldquo;are you sure?&rdquo; at the machine, because zero-touch means nobody is there to answer. The decision happens when you arm. Everything else makes the arm the only way in, and stops most setup mistakes before the disk is touched.</p>
+          <p>The one exception is the image itself: its SHA-256 can only be checked once it is downloaded, after partitioning. Try every new profile on a VM first. And no guard replaces checking which machine you arm.</p>
           <a class="text-link" href="STATUS.html#known-limitations">Accepted risks and limitations <span aria-hidden="true">&rarr;</span></a>
         </div>
         <div class="rails">
-          <div class="rail"><h3>Opt-in per boot</h3><p>Only an armed MAC gets a deployment script, and serving it uses up the arm. A machine that network boots again afterwards boots its disk.</p></div>
-          <div class="rail"><h3>Arms are short-lived</h3><p>An arm nobody boots expires (two hours by default), and no arm survives a server restart. Re-arm what you still want.</p></div>
-          <div class="rail"><h3>Fails closed</h3><p>If the server cannot durably record that an arm was used, it does not deploy. If it cannot even restore its state, it refuses all boots and arms.</p></div>
-          <div class="rail"><h3>Checks before the wipe</h3><p>Manifest, image reachability and size, and disk capacity are checked first. A dead URL or a too-small disk leaves the machine as it was. A wrong hash or a corrupted download is caught only after partitioning and leaves the disk erased, so try each new profile on a VM first.</p></div>
-          <div class="rail"><h3>Picks the disk carefully</h3><p>The lowest-numbered internal disk of at least 64&nbsp;GB. Never USB or a file-backed virtual disk; SD and eMMC only after fixed disks.</p></div>
-          <div class="rail"><h3>WinPE and UEFI only</h3><p>The engine refuses to run outside WinPE or on non-UEFI firmware, and shows a ten-second countdown any key can abort.</p></div>
-          <div class="rail caution"><h3>Set the token</h3><p>Release 0.1.2 listens on every interface by default and the token is optional: without <code>M2W_TOKEN</code>, anyone who can reach the server, or any web page open in your browser, can arm a wipe. Set it, even on <code>127.0.0.1</code>. Fixed in the source for the next release: loopback by default, no network listener without a token, and arming requests from other sites refused.</p></div>
-          <div class="rail caution"><h3>Mind the static route</h3><p>The static <code>boot/minute2win.ipxe</code> deploys on every boot that reaches it. Use it only behind a per-boot opt-in; prefer server arms. In the source it has no default host and boots nothing until you set <code>m2w-base</code>.</p></div>
+          <div class="rail"><h3>Opt-in per boot</h3><p>Only an armed MAC gets a deployment script, and serving it uses up the arm.</p></div>
+          <div class="rail"><h3>Arms are short-lived</h3><p>Unused arms expire (two hours by default) and none survive a server restart.</p></div>
+          <div class="rail"><h3>Fails closed</h3><p>If the server cannot durably record that an arm was used, it does not deploy.</p></div>
+          <div class="rail"><h3>Checks before the wipe</h3><p>Manifest, image reachability and size, and disk capacity. A dead URL or a too-small disk leaves the machine as it was.</p></div>
+          <div class="rail"><h3>Picks the disk carefully</h3><p>The lowest-numbered internal disk of at least 64&nbsp;GB. Never USB or a file-backed virtual disk.</p></div>
+          <div class="rail"><h3>WinPE + UEFI only, with a countdown</h3><p>The engine refuses to run anywhere else, and shows ten seconds any key can abort.</p></div>
+          <div class="rail caution"><h3>Set the token</h3><p>The server listens on loopback by default, refuses to listen on the network without <code>M2W_TOKEN</code>, and refuses arming requests from other web pages. <code>-insecure-no-token</code> switches the token off: then anyone who can reach the port can arm a wipe, so use it only on an isolated lab network. The console speaks plain HTTP; keep it on a trusted segment or behind a TLS proxy. Upgrading from an older release? Read the changelog first.</p></div>
+          <div class="rail caution"><h3>Mind the static route</h3><p>The static <code>boot/minute2win.ipxe</code> deploys on every boot that reaches it. Use it only behind a per-boot opt-in; prefer server arms.</p></div>
         </div>
       </div>
     </section>
 
     <section id="status" class="section wrap" aria-labelledby="status-title">
       <div class="section-heading">
-        <div><p class="eyebrow">Know where it stands</p><h2 id="status-title">Early release.<br><em>Honest</em> about it.</h2></div>
-        <p>Version 0.1.2 is for evaluation on machines you can afford to wipe. Every claim here comes from the public verification record.</p>
+        <div><p class="eyebrow">Know where it stands</p><h2 id="status-title">Early release.<br><span class="foil">Honest</span> about it.</h2></div>
+        <p>Version 0.2.0 is for evaluation on machines you can afford to wipe. Every claim on this page comes from the public verification record.</p>
       </div>
       <div class="status-grid">
         <div class="status-list">
-          <article><span class="tag">Verified</span><h3>Server rules and the console</h3><p>Arm, boot, report and persistence rules are covered by Go tests, including native Windows runs. The console flow, phone width and light/dark are checked with Playwright.</p></article>
-          <article><span class="tag">Verified on one VM</span><h3>The whole chain, from Windows</h3><p>UEFI proxy DHCP, shim/iPXE over TFTP, wimboot, automatic WinPE, partitioning, verified download, DISM apply, bcdboot, disk boot, OOBE and the automatic first-boot script, on one disposable Proxmox VM.</p></article>
-          <article><span class="tag">Verified</span><h3>Signed Windows builds</h3><p>The Windows server is Authenticode-signed and timestamped in CI, and a release is never published unsigned. Linux archives and the AppImage are covered by <code>SHA256SUMS</code>.</p></article>
+          <article><span class="tag">Verified</span><h3>Server rules and the console</h3><p>Arm, boot, report and persistence rules under Go tests, including native Windows runs. The console flow, phone width and light/dark under Playwright.</p></article>
+          <article><span class="tag">Verified on one VM</span><h3>The whole chain, hosted on Windows</h3><p>UEFI proxy DHCP, iPXE over TFTP, wimboot, automatic WinPE, partitioning, verified download, DISM apply, bcdboot, disk boot, OOBE and the automatic first-boot script.</p></article>
+          <article><span class="tag">Verified</span><h3>Signed Windows builds</h3><p>Authenticode-signed and timestamped in CI; a release is never published unsigned. Linux archives and the AppImage are covered by <code>SHA256SUMS</code>.</p></article>
         </div>
         <div class="status-list">
-          <article><span class="tag next">Not yet verified</span><h3>Physical hardware and Secure Boot</h3><p>Real firmware PXE, the port 4011 path, Secure Boot and multi-interface hosts. OEM product keys may skip the first-boot script.</p></article>
-          <article><span class="tag next">Not in this release</span><h3>Domain, Entra or hybrid join</h3><p>Not implemented; use <code>joinMethod: none</code> and enroll separately. Windows images, WinPE, wimboot and iPXE are not included.</p></article>
-          <article><span class="tag next">Bring your own</span><h3>Boot files and image host</h3><p>In release 0.1.2 the included profile and default URLs point at a restricted maintainer host; replace them with your own image, hash and boot files. The source has no default host: the server will not arm until <code>-image-base</code> and the profile point at yours.</p></article>
+          <article><span class="tag dim">Not yet verified</span><h3>Physical hardware and Secure Boot</h3><p>Real firmware PXE, the port 4011 path, Secure Boot and multi-interface hosts. OEM product keys may skip the first-boot script.</p></article>
+          <article><span class="tag dim">Not in this release</span><h3>Domain, Entra or hybrid join</h3><p>Not implemented; use <code>joinMethod: none</code> and enroll separately. Windows images, WinPE, wimboot and iPXE are not included.</p></article>
+          <article><span class="tag dim">Bring your own</span><h3>Boot files and image host</h3><p>There is no default image or boot-file host. The included profile is a template the server will not arm until it points at your own image and hash, and <code>-image-base</code> at your own boot files; the walkthrough shows how.</p></article>
         </div>
-      </div>
-      <div class="clock-note">
-        <div><span class="small-label">The goal</span><div class="big">~1&nbsp;min</div></div>
-        <p><strong>The name is the goal, not a measurement.</strong> The target is network boot to flashed Windows in about a minute on an NVMe machine over 1&nbsp;GbE. That has not been measured yet. The one recorded run, a 4&nbsp;GB, two-core VM pulling an 8.16&nbsp;GB image from a remote host, finished the engine in 359.4&nbsp;s. Every phase is timed so the claim will be measured, never just asserted.</p>
       </div>
     </section>
 
     <section id="start" class="section band" aria-labelledby="start-title">
       <div class="wrap">
-        <div class="section-heading">
-          <div><p class="eyebrow">Try it</p><h2 id="start-title">Look at the console<br><em>before</em> you arm anything.</h2></div>
-          <p>A loopback listener lets you inspect the console without serving boot scripts to any other machine. Deploying takes your own manifest, boot files and boot route: follow Getting started.</p>
+        <div class="setup-card">
+          <div class="setup-copy">
+            <p class="eyebrow"><span class="dot"></span>Your first deployment</p>
+            <h2 id="start-title">One Windows PC.<br>One VM. <span class="foil">One click.</span></h2>
+            <p>The walkthrough takes you from nothing to a VM that reimages itself when you click <em>Arm</em>: every command, what each screen says, an FAQ, and the advice we wish we&rsquo;d had. Plan an afternoon; most of it is downloads.</p>
+            <div class="actions">
+              <a class="button primary" href="WALKTHROUGH.html">Start the walkthrough <span aria-hidden="true">&rarr;</span></a>
+            </div>
+          </div>
+          <ol class="setup-steps">
+            <li><b>Download</b> the server and boot files, check the hashes</li>
+            <li><b>Build WinPE</b> with the Windows ADK, one script</li>
+            <li><b>Prepare the image</b>: export one edition, hash it, host it over HTTPS</li>
+            <li><b>Make a Hyper-V VM</b> that network boots first</li>
+            <li><b>Start the server</b> with built-in PXE</li>
+            <li><b>Arm, boot, watch</b> the board fill in</li>
+            <li><b>Re-arm and reboot</b> whenever you want it new again</li>
+          </ol>
         </div>
-        <div class="start">
-          <aside class="get">
-            <span class="small-label">Download v0.1.2</span>
-            <h3>One server, your platform.</h3>
-            <ul>
-              <li>Windows x64 ZIP, Authenticode-signed</li>
-              <li>Linux amd64 and arm64 archives</li>
-              <li>Linux x86_64 AppImage</li>
-              <li>Boot files ZIP</li>
-            </ul>
-            <a class="button primary" href="https://github.com/spilloid/minute2win/releases/tag/v0.1.2">Release v0.1.2 <span aria-hidden="true">&#8599;</span></a>
-            <p>Verify <code>SHA256SUMS</code> before running anything. Run from the extracted folder that holds the binary and <code>manifests/</code>.</p>
-          </aside>
-          <div class="quick">
-            <h3>Start it on loopback, with a token.</h3>
-            <p class="code-label">Linux</p>
-<pre class="code"><span class="c"># the console only, on this machine</span>
+
+        <div class="quick">
+          <div>
+            <h3>Just want to see the console?</h3>
+            <p>Run the server on loopback with a token. Nothing else on your network can reach it, so nothing can be armed for real.</p>
+          </div>
+<pre class="code"><span class="c"># Windows PowerShell, in the extracted release folder</span>
+$env:M2W_TOKEN = 'replace-with-a-long-random-token'
+.\minute2win-server.exe -listen 127.0.0.1:8080
+
+<span class="c"># Linux</span>
 export M2W_TOKEN='replace-with-a-long-random-token'
 ./minute2win-server -listen 127.0.0.1:8080 -open=false</pre>
-            <p class="code-label">Windows PowerShell</p>
-<pre class="code">$env:M2W_TOKEN = 'replace-with-a-long-random-token'
-.\minute2win-server.exe -listen 127.0.0.1:8080</pre>
-            <p>Then open <code>http://localhost:8080</code>. Keep <code>-listen</code> explicit: release 0.1.2 otherwise listens on every interface. Ready for a real target? <a href="GETTING_STARTED.html">Getting started</a> walks from a deployment profile and boot files to your first armed boot on a disposable VM.</p>
-          </div>
         </div>
       </div>
     </section>
 
-    <section id="guides" class="section wrap" aria-labelledby="guides-title">
-      <div class="section-heading">
-        <div><p class="eyebrow">Documentation</p><h2 id="guides-title">Everything else is<br>in the <em>guides.</em></h2></div>
-        <p>Setup, reference and the evidence behind every claim. <a href="guide.html">All documentation <span aria-hidden="true">&rarr;</span></a></p>
-      </div>
-      <div class="guides">
-        <a href="GETTING_STARTED.html"><span class="small-label">Start here</span><h3>Getting started</h3><p>From an extracted release to a first armed boot on a disposable VM.</p></a>
-        <a href="BOOT_ASSETS.html"><span class="small-label">Setup</span><h3>Boot assets</h3><p>Build WinPE, stage boot files and choose a boot route.</p></a>
-        <a href="MANIFESTS.html"><span class="small-label">Reference</span><h3>Manifests</h3><p>Image, disk, OOBE, guard and reporting settings.</p></a>
-        <a href="SERVER.html"><span class="small-label">Reference</span><h3>Server and PXE</h3><p>Console flags, built-in PXE, TFTP and Windows hosting.</p></a>
-        <a href="API.html"><span class="small-label">Reference</span><h3>API</h3><p>Read state, arm and disarm from scripts.</p></a>
-        <a href="TROUBLESHOOTING.html"><span class="small-label">When it fails</span><h3>Troubleshooting</h3><p>Boot, network, image, persistence and bootstrap failures.</p></a>
-        <a href="STATUS.html"><span class="small-label">Evidence</span><h3>Status and known issues</h3><p>What has been verified, how, and what has not.</p></a>
-        <a href="RELEASING.html"><span class="small-label">Project</span><h3>Releasing</h3><p>Signed artifacts, checksums and verification.</p></a>
-      </div>
-    </section>
-
-    <section class="section wrap faq" aria-labelledby="faq-title" style="padding-top:0">
+    <section class="section wrap faq" aria-labelledby="faq-title">
       <p class="eyebrow">Before you arm anything</p>
-      <h2 id="faq-title">A few straight answers.</h2>
-      <details><summary>Could it wipe the wrong machine?</summary><p>It deploys only to a MAC address you armed, once, and only from WinPE on UEFI. On that machine it picks the lowest-numbered internal disk of at least the profile&rsquo;s minimum size, never USB. If the machine has several internal disks, check which one that is before you arm it; a higher minimum size in the profile can rule out a smaller data disk. Arming the wrong MAC wipes the wrong machine: the guards cannot know your intent.</p></details>
-      <details><summary>Is it really one minute?</summary><p>Not yet shown. One minute on NVMe over 1&nbsp;GbE is the design target and the reason every phase is timed. The only recorded run so far, a small VM pulling a large image from a remote host, took about six minutes. The project will not claim a speed it has not measured.</p></details>
+      <h2 id="faq-title">Straight answers.</h2>
+      <details><summary>Is it really one minute?</summary><p>Not yet shown. About a minute on NVMe with a fast LAN is the design target and the reason every phase is timed. The only recorded run, a small VM pulling a large image from a remote host, took about six minutes, almost all of it moving bytes. The project will not claim a speed it has not measured, and the board will tell you yours.</p></details>
+      <details><summary>Could it wipe the wrong machine?</summary><p>It deploys only to a MAC address you armed, once, and only from WinPE on UEFI. On that machine it picks the lowest-numbered internal disk of at least the profile&rsquo;s minimum size, never USB. If the machine has several internal disks, check which one that is first. Arming the wrong MAC wipes the wrong machine: the guards cannot know your intent.</p></details>
+      <details><summary>Do I need a special network, or to replace my router&rsquo;s DHCP?</summary><p>No. The built-in PXE is proxyDHCP: your router keeps handing out addresses, and minute2win only adds &ldquo;boot this file&rdquo; for armed machines. Everything else on the network never notices it.</p></details>
       <details><summary>Does it need a cloud service or an agent on the machine?</summary><p>No. The server runs on a Windows or Linux host on your network. Targets need nothing installed: they network boot, and WinPE fetches the engine.</p></details>
-      <details><summary>Does it include Windows?</summary><p>No. You supply a licensed Windows image, WinPE built with the Windows ADK, wimboot, BCD, boot.sdi and iPXE binaries. Windows licensing stays your responsibility.</p></details>
-      <details><summary>Will it join machines to a domain or Entra ID?</summary><p>Not in this release. Joins are not implemented; the profile setting only logs that. Enroll machines with your existing process after deployment.</p></details>
-      <details><summary>What about Secure Boot and real hardware?</summary><p>Both are unverified. The full chain has run on a virtual UEFI machine; physical firmware, Secure Boot with a signed shim, and OEM-key machines are the next validation milestones. See Status before deploying.</p></details>
+      <details><summary>Does it include Windows?</summary><p>No. You supply a licensed Windows image, WinPE built with the Windows ADK, wimboot and iPXE. Windows licensing stays your responsibility.</p></details>
+      <details><summary>Domain join? Entra? Secure Boot? Real hardware?</summary><p>Joins are not implemented yet; enroll machines with your existing process afterwards. Secure Boot and physical firmware are unverified: the full chain has run on a virtual UEFI machine, and physical machines are the next milestone. See Status before deploying.</p></details>
     </section>
 
-    <section class="closing wrap" aria-labelledby="closing-title">
-      <p class="eyebrow"><span class="dot"></span>Free, MIT licensed, built in the open</p>
-      <h2 id="closing-title">Start with a VM<br>you <em>don&rsquo;t mind wiping.</em></h2>
-      <p>Arm it, boot it, read the board. Then decide whether minute2win belongs on your network.</p>
-      <div class="actions">
-        <a class="button primary" href="https://github.com/spilloid/minute2win/releases/tag/v0.1.2">Download v0.1.2 <span aria-hidden="true">&darr;</span></a>
-        <a class="text-link" href="GETTING_STARTED.html">Read Getting started <span aria-hidden="true">&rarr;</span></a>
+    <section class="closing" aria-labelledby="closing-title">
+      <div class="wrap">
+        <p class="eyebrow"><span class="dot"></span>Free, MIT licensed, built in the open</p>
+        <h2 id="closing-title">Find a VM you<br><span class="foil">don&rsquo;t mind wiping.</span></h2>
+        <p>Arm it. Boot it. Read the board. Then decide whether minute2win belongs on your network.</p>
+        <div class="actions">
+          <a class="button primary" href="WALKTHROUGH.html">Set it up <span aria-hidden="true">&rarr;</span></a>
+          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.2.0">Download v0.2.0 <span aria-hidden="true">&darr;</span></a>
+        </div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer wrap">
-    <a class="brand" href="./">minute<span>2</span>win</a>
-    <nav aria-label="Footer">
-      <a href="guide.html">Docs</a>
-      <a href="STATUS.html">Status</a>
-      <a href="https://github.com/spilloid/minute2win">Source</a>
-      <a href="https://github.com/spilloid/minute2win/issues">Issues</a>
-      <a href="https://github.com/spilloid/minute2win/blob/main/SECURITY.md">Security</a>
-      <a href="https://github.com/spilloid/minute2win/blob/main/LICENSE">MIT license</a>
-    </nav>
+  <footer class="site-footer">
+    <div class="wrap footer-in">
+      <a class="brand" href="./">minute<span>2</span>win</a>
+      <nav aria-label="Footer">
+        <a href="WALKTHROUGH.html">Walkthrough</a>
+        <a href="guide.html">Docs</a>
+        <a href="STATUS.html">Status</a>
+        <a href="https://github.com/spilloid/minute2win">Source</a>
+        <a href="https://github.com/spilloid/minute2win/issues">Issues</a>
+        <a href="https://github.com/spilloid/minute2win/blob/main/SECURITY.md">Security</a>
+        <a href="https://github.com/spilloid/minute2win/blob/main/LICENSE">MIT license</a>
+      </nav>
+    </div>
   </footer>
+  <script src="assets/hero.js" defer></script>
 </body>
 </html>
