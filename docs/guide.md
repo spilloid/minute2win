@@ -4,32 +4,42 @@ title: Minute2Win documentation
 
 # Minute2Win documentation
 
-A self-hosted console and boot toolkit for zero-touch Windows installation.
+Welcome! minute2win reinstalls Windows on a machine over the network. You arm the machine's MAC address in a web console, the machine network boots, and it installs Windows by itself while you watch.
 
-**Start here:** [Walkthrough](WALKTHROUGH.md) builds a complete lab on one Windows PC, from downloads to a Hyper-V VM that reimages itself when you arm it, with every command, expected output and an FAQ. [Getting started](GETTING_STARTED.md) is the shorter, platform-neutral version and takes you from an extracted server release to an operator-owned deployment configuration. [Status](STATUS.md) explains what has been verified and what still needs hardware or setup validation.
+## Where to start
 
-> Deployment erases the selected disk. Use a disposable VM for initial validation. The one-minute deployment goal has not been measured.
+- **New here?** Take the [Walkthrough](WALKTHROUGH.md). It sets up everything on one Windows PC and ends with a Hyper-V virtual machine that reimages itself when you arm it. Every command and every screen you'll see is in there, plus an FAQ.
+- **Already know PXE and your network?** [Getting started](GETTING_STARTED.md) is the shorter version, for Windows or Linux.
+- **Wondering how ready it is?** [Status](STATUS.md) says exactly what's been verified and what hasn't.
+
+> **Arming a machine means "wipe it".** An armed machine's disk is erased on its next network boot, without another prompt. Start with a throwaway virtual machine. And "a minute" is the goal, not a measured result yet.
 
 ## The console
 
+Arm a machine, and it shows up in the **Armed** list until it boots:
+
 ![The console after arming a machine: the warning that an armed machine is wiped on its next network boot, the armed list with a Disarm button, and an empty deployments board.](assets/screenshots/armed-desktop.png)
+
+When it boots, the arm is used up and the board fills in each phase's lap time:
 
 ![The console after the machine booted and reported: the arm is consumed and the deployments board shows each phase's lap time and a stopwatch.](assets/screenshots/deployed-desktop.png)
 
-*Demo data from the automated UI test: the MAC, the QEMU machine and the 58.1 s lap times are fixtures, not a measured deployment.*
+*Demo data from the automated UI test. The MAC, the QEMU machine and the 58.1 s lap times are fixtures, not a measured deployment.*
 
-| Guide | What it covers |
+## All the guides
+
+| Guide | Read it when you want to... |
 | --- | --- |
-| [Walkthrough](WALKTHROUGH.md) | One Windows PC, end to end: Hyper-V target, built-in PXE, image prep, FAQ and advice |
-| [Getting started](GETTING_STARTED.md) | Console preview, prerequisites, profiles, arming and first deployment |
-| [Boot assets](BOOT_ASSETS.md) | WinPE build, hosting layout, updating scripts and static iPXE |
-| [Manifests](MANIFESTS.md) | Image, disk, OOBE, tenant, guard and reporting settings |
-| [Server](SERVER.md) | HTTP console, PXE flags, architecture selection and TFTP behavior |
-| [API](API.md) | Read state, arm and disarm machines |
-| [Troubleshooting](TROUBLESHOOTING.md) | Boot, network, image, persistence and bootstrap failures |
-| [Status](STATUS.md) | Verification evidence, accepted risks and next validation work |
-| [Releasing](RELEASING.md) | Signed artifacts, verification and public repository setup |
+| [Walkthrough](WALKTHROUGH.md) | Do a first deployment on one Windows PC, start to finish |
+| [Getting started](GETTING_STARTED.md) | Set up on your own network, on Windows or Linux |
+| [Boot assets](BOOT_ASSETS.md) | Build WinPE, lay out the boot files, update the engine scripts |
+| [Manifests](MANIFESTS.md) | Configure the image, disk sizes, setup screens, countdown and reporting |
+| [Server](SERVER.md) | Look up every server flag, the built-in PXE and TFTP |
+| [API](API.md) | Arm, disarm and read state from a script |
+| [Troubleshooting](TROUBLESHOOTING.md) | Work out why something didn't happen |
+| [Status](STATUS.md) | See the verification record, known issues and what's next |
+| [Releasing](RELEASING.md) | Check signed downloads, or cut a release |
 
 [Source and downloads](https://github.com/spilloid/minute2win) · [Contributing](https://github.com/spilloid/minute2win/blob/main/CONTRIBUTING.md) · [Security](https://github.com/spilloid/minute2win/blob/main/SECURITY.md)
 
-GitHub Pages hosts this documentation and the [product overview](https://spilloid.github.io/minute2win/) only. It does not host deployment images or run the Minute2Win server.
+This site only hosts the documentation and the [product overview](https://spilloid.github.io/minute2win/). It doesn't host Windows images or boot files, and it doesn't run a minute2win server.

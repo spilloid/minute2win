@@ -6,11 +6,28 @@ title: "Walkthrough: your first deployment"
 
 **One Windows PC. One Hyper-V virtual machine. At the end, you click Arm, reboot the VM, and it reinstalls Windows by itself while you watch the lap times come in.**
 
-This walkthrough puts every piece on one PC so you can see the whole thing work before you point it at real hardware. It is long because it covers everything, from downloads to a working loop. Most of the time goes on downloads (the Windows ADK and a Windows image), not on minute2win.
+This guide puts every piece on one PC, so you can watch the whole thing work before you go anywhere near real hardware. It looks long because nothing is skipped: every command is here, and the key steps end with a quick check, so you know it worked before you move on. Most of your time goes on downloads (the Windows ADK and a Windows image), not on minute2win.
 
-> **Deployment erases the selected disk without asking.** That is the design: arming a machine is the authorization to reimage it. In this walkthrough the only thing that gets armed is a brand-new, empty VM. Keep it that way until you have watched a full run.
+You don't need to be a deployment expert. If you can open PowerShell as Administrator and copy commands, you can do this.
 
-> **What is verified, and what this adds.** The chain this guide builds (Windows-hosted built-in PXE, iPXE, wimboot, WinPE, the engine, first boot) is the one that ran end to end on a disposable UEFI VM; see [Status](STATUS.md). That run's VM was on Proxmox. This guide uses a Hyper-V Generation 2 VM instead, because it is on every Windows Pro PC; that exact combination is not yet in the verification record. If it works for you (or doesn't), [say so in an issue](https://github.com/spilloid/minute2win/issues): it is useful evidence.
+> **Arming a machine means "wipe it".** When an armed machine boots, its disk is erased without another prompt. That's the design. In this guide the only thing you arm is a brand-new, empty VM. Keep it that way until you've watched a full run.
+
+> **What's verified, and what's new here.** The chain this guide builds (Windows-hosted built-in PXE, iPXE, wimboot, WinPE, the engine, first boot) is the one that ran end to end on a disposable UEFI VM; see [Status](STATUS.md). That VM ran on Proxmox. This guide uses a Hyper-V Generation 2 VM instead, because every Windows Pro PC has Hyper-V, and that exact combination isn't in the verification record yet. Whether it works for you or not, [tell us in an issue](https://github.com/spilloid/minute2win/issues). It's useful evidence.
+
+### The steps at a glance
+
+| Step | What you do |
+| --- | --- |
+| 1-3 | Make some folders, turn on Hyper-V, download minute2win |
+| 4 | Build WinPE, the small Windows that does the installing |
+| 5 | Export your Windows image and host it over HTTPS |
+| 6 | Write a profile that says which image to install |
+| 7 | Start the file server and minute2win |
+| 8 | Create the VM you'll reimage |
+| 9-10 | Arm it, boot it, watch it, check the result |
+| 11 | Do it again: one click and a reboot |
+
+Stuck at any point? The [FAQ](#faq) at the end covers what usually goes wrong.
 
 ## The plan
 
@@ -28,7 +45,7 @@ This walkthrough puts every piece on one PC so you can see the whole thing work 
           an HTTPS host somewhere: your Windows image (install.wim)
 ```
 
-The VM shares your PC's wired network through a Hyper-V external switch, so it sits on your LAN like any other machine. Your router keeps handing out addresses. minute2win's built-in PXE answers only the one MAC address you arm.
+In plain words: the VM shares your PC's wired network through a Hyper-V external switch, so it sits on your LAN like any other machine. Your router keeps handing out addresses as usual. minute2win's built-in network boot only answers the one MAC address you arm, and every other machine on your network is left alone.
 
 ### What you need
 
@@ -111,6 +128,8 @@ Check: `C:\m2w\boot\windows11\install.ps1` and `C:\m2w\boot\windows11\minute2win
 
 ## 4. Build WinPE
 
+WinPE is a tiny version of Windows that runs from memory. It's what boots on the VM, wipes the disk and installs the real Windows. It's Microsoft's, so minute2win doesn't include it, and you build your own copy. The builder script does the hard part.
+
 Install two things from [Microsoft's ADK page](https://learn.microsoft.com/windows-hardware/get-started/adk-install), in this order:
 
 1. **Windows ADK** (the *Deployment Tools* feature is the one you need)
@@ -176,7 +195,7 @@ A web server on your own LAN works only if its certificate chains to a root WinP
 
 ## 6. Write your profile
 
-A profile is a small JSON file. Fill in your image URL and the hash from step 5. Save it **without a byte-order mark**; this snippet does that (Windows PowerShell's `Set-Content -Encoding UTF8` would add one, and the server would refuse the profile).
+A profile is a small JSON file that tells minute2win which image to install and how. Fill in your image URL and the hash from step 5. Save it **without a byte-order mark**; this snippet does that (Windows PowerShell's `Set-Content -Encoding UTF8` would add one, and the server would refuse the profile).
 
 ```powershell
 $json = @'
@@ -205,6 +224,8 @@ $json = @'
 The file name is the profile name: `lab-win11.json` shows up in the console as `lab-win11`.
 
 ## 7. Start everything
+
+Three things run on your PC from here on: a simple file server for the boot files (terminal 1), minute2win itself (terminal 2), and, in step 8, the VM.
 
 ### iPXE
 
@@ -344,7 +365,7 @@ Then do the most important check: **restart the VM without arming it.** It must 
 
 ## 11. Do it again
 
-This is the fun part. Whenever you want the VM brand new:
+You did it. This is the fun part. Whenever you want the VM brand new:
 
 1. Arm `00:15:5d:00:2a:01` in the console (from your phone, if you like).
 2. Restart the VM.

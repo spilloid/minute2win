@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Documentation: README, the docs home (`docs/guide.md`), Getting started and Troubleshooting were rewritten for newcomers, in plainer, friendlier language. The README now says who minute2win is for, gives an honest status list, lists what you bring yourself, and moves the 0.2.0 upgrade details to a pointer to this changelog. Getting started and the docs home explain each piece before asking for it. Troubleshooting is grouped by when a problem shows up (starting the server, arming, network boot, WinPE, after install), and every earlier row is kept. The walkthrough gained an at-a-glance table of steps and a short explanation before WinPE, the profile and starting the servers; its commands are unchanged. No behavior changed, and the safety warnings, verification limits and demo-data captions are all kept.
+
 ## [0.2.0] - 2026-10-24
 
 ### Breaking: safe defaults for arming
