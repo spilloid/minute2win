@@ -18,7 +18,7 @@ import (
 func startupContent(exe string, args []string) []byte {
 	if runtime.GOOS == "darwin" {
 		var b bytes.Buffer
-		b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>us.spillerstech.minute2win.tray</string><key>ProgramArguments</key><array>`)
+		b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>io.github.spilloid.minute2win.tray</string><key>ProgramArguments</key><array>`)
 		for _, arg := range append([]string{exe}, args...) {
 			b.WriteString("<string>")
 			_ = xml.EscapeText(&b, []byte(arg))
@@ -43,7 +43,7 @@ func startupContent(exe string, args []string) []byte {
 func startupPath() (string, error) {
 	if runtime.GOOS == "darwin" {
 		home, err := os.UserHomeDir()
-		return filepath.Join(home, "Library", "LaunchAgents", "us.spillerstech.minute2win.tray.plist"), err
+		return filepath.Join(home, "Library", "LaunchAgents", "io.github.spilloid.minute2win.tray.plist"), err
 	}
 	config, err := os.UserConfigDir()
 	return filepath.Join(config, "autostart", "minute2win-tray.desktop"), err

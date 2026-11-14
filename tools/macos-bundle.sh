@@ -15,7 +15,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>minute2win-tray</string>
-<key>CFBundleIdentifier</key><string>us.spillerstech.minute2win.tray</string>
+<key>CFBundleIdentifier</key><string>io.github.spilloid.minute2win.tray</string>
 <key>CFBundleName</key><string>minute2win Tray</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$version</string>
