@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "deployment": { "name": "Bazzite AMD/Intel KDE (experimental)" },
+  "installer": "bazzite",
+  "linux": {
+    "kernel": { "file": "bazzite-linux", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "initrd": { "file": "bazzite-initrd.img", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "stage2": { "file": "bazzite-stage2.img", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "containerImage": "ghcr.io/ublue-os/bazzite@sha256:REPLACE_WITH_VERIFIED_AMD64_DIGEST",
+    "username": "m2w",
+    "authorizedKeys": ["REPLACE_WITH_YOUR_PUBLIC_SSH_KEY"],
+    "desktopAutologin": true,
+    "minSizeGB": 64,
+    "countdownSeconds": 10
+  }
+}

@@ -31,6 +31,9 @@ type linuxProfile struct {
 	Kernel           linuxAsset  `json:"kernel"`
 	Initrd           linuxAsset  `json:"initrd"`
 	ISO              *linuxAsset `json:"iso,omitempty"`
+	Stage2           *linuxAsset `json:"stage2,omitempty"`
+	ContainerImage   string      `json:"containerImage,omitempty"`
+	DesktopAutologin bool        `json:"desktopAutologin,omitempty"`
 	FirstBoot        *linuxAsset `json:"firstBoot,omitempty"`
 	Suite            string      `json:"suite,omitempty"`
 	Hostname         string      `json:"hostname,omitempty"`
@@ -41,10 +44,11 @@ type linuxProfile struct {
 }
 
 var (
-	linuxFileRe   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-	linuxUserRe   = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,30}$`)
-	linuxHostRe   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
-	linuxOriginRe = regexp.MustCompile(`^https?://[A-Za-z0-9.:[\]-]+$`)
+	linuxFileRe    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	linuxUserRe    = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,30}$`)
+	linuxHostRe    = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
+	linuxOriginRe  = regexp.MustCompile(`^https?://[A-Za-z0-9.:[\]-]+$`)
+	bazziteImageRe = regexp.MustCompile(`^ghcr\.io/ublue-os/bazzite@sha256:[a-f0-9]{64}$`)
 )
 
 func (p *linuxProfile) validate() error {
@@ -85,7 +89,17 @@ func (p *linuxProfile) validate() error {
 			return fmt.Errorf("linux.authorizedKeys contains invalid public key data")
 		}
 	}
-	if p.Installer == "ubuntu" {
+	if p.Installer != "bazzite" && (p.Stage2 != nil || p.ContainerImage != "" || p.DesktopAutologin) {
+		return fmt.Errorf("linux.stage2, containerImage and desktopAutologin are only used by Bazzite")
+	}
+	if p.Installer == "bazzite" {
+		if p.Stage2 == nil || !bazziteImageRe.MatchString(p.ContainerImage) || strings.HasSuffix(p.ContainerImage, strings.Repeat("0", 64)) {
+			return fmt.Errorf("Bazzite requires linux.stage2 and the AMD/Intel KDE image ghcr.io/ublue-os/bazzite pinned by @sha256 digest")
+		}
+		if p.ISO != nil || p.Suite != "" {
+			return fmt.Errorf("Bazzite uses Fedora Anaconda stage2, not linux.iso or Debian linux.suite")
+		}
+	} else if p.Installer == "ubuntu" {
 		if p.ISO == nil {
 			return fmt.Errorf("Ubuntu requires linux.iso, matching its kernel and initrd")
 		}
@@ -115,6 +129,9 @@ func (p *linuxProfile) assets() []linuxAsset {
 	a := []linuxAsset{p.Kernel, p.Initrd}
 	if p.ISO != nil {
 		a = append(a, *p.ISO)
+	}
+	if p.Stage2 != nil {
+		a = append(a, *p.Stage2)
 	}
 	if p.FirstBoot != nil {
 		a = append(a, *p.FirstBoot)
@@ -184,6 +201,8 @@ func linuxBootScript(origin, mac, key string, p *linuxProfile) string {
 	args := "auto=true priority=critical netcfg/choose_interface=auto hostname=" + p.hostname(mac) + " url=" + base + "preseed.cfg"
 	if p.Installer == "ubuntu" {
 		args = "ip=dhcp boot=casper autoinstall url=" + base + "image.iso ds=nocloud-net;s=" + base
+	} else if p.Installer == "bazzite" {
+		args = "ip=dhcp rd.neednet=1 inst.cmdline inst.stage2=" + base + " inst.ks=" + base + "kickstart.ks"
 	}
 	// Every command fails closed: iPXE must never fall through to booting a
 	// stale kernel/initrd left by an earlier script when a transfer fails.
@@ -219,6 +238,8 @@ func (s *Server) linuxFile(w http.ResponseWriter, r *http.Request) {
 		asset = &p.Initrd
 	case "image.iso":
 		asset = p.ISO
+	case "stage2.img":
+		asset = p.Stage2
 	case "firstboot.sh":
 		asset = p.FirstBoot
 	default:
@@ -258,9 +279,17 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'
 func linuxConfig(origin, mac, key string, p *linuxProfile, file string) (string, bool) {
 	base := linuxBase(origin, mac, key)
 	switch file {
+	case ".treeinfo":
+		if p.Installer == "bazzite" {
+			return "[stage2]\nmainimage=stage2.img\n", true
+		}
 	case "preseed.cfg":
-		if p.Installer != "ubuntu" {
+		if p.Installer == "debian" || p.Installer == "proxmox" {
 			return debianPreseed(base, mac, p), true
+		}
+	case "kickstart.ks":
+		if p.Installer == "bazzite" {
+			return bazziteKickstart(base, origin, mac, key, p), true
 		}
 	case "user-data":
 		if p.Installer == "ubuntu" {
@@ -270,7 +299,13 @@ func linuxConfig(origin, mac, key string, p *linuxProfile, file string) (string,
 		if p.Installer == "ubuntu" {
 			return "instance-id: m2w-" + key + "\nlocal-hostname: " + p.hostname(mac) + "\n", true
 		}
-	case "guard.sh", "finish.sh", "firstboot-wrapper.sh":
+	case "guard.sh", "finish.sh", "firstboot-wrapper.sh", "bazzite-finish.sh":
+		if file == "bazzite-finish.sh" && p.Installer != "bazzite" {
+			return "", false
+		}
+		if file == "finish.sh" && p.Installer == "bazzite" {
+			return "", false
+		}
 		body, _ := linuxScripts.ReadFile("linux/" + file)
 		common, _ := linuxScripts.ReadFile("linux/common.sh")
 		selector, _ := linuxScripts.ReadFile("linux/select-disk.sh")
@@ -281,6 +316,10 @@ func linuxConfig(origin, mac, key string, p *linuxProfile, file string) (string,
 			"\nM2W_INSTALLER=" + shellQuote(p.Installer) +
 			"\nM2W_STATE=/var/lib/minute2win\nM2W_LOG=/var/log/minute2win-firstboot.log\nM2W_WRAPPER=/usr/local/sbin/minute2win-firstboot" +
 			fmt.Sprintf("\nM2W_MIN_GB=%d\nM2W_COUNTDOWN=%d\nM2W_FIRSTBOOT=%t\n", p.MinSizeGB, *p.CountdownSeconds, p.FirstBoot != nil)
+		if p.Installer == "bazzite" {
+			vars += "M2W_WRAPPER=/var/usrlocal/sbin/minute2win-firstboot\nM2W_BAZZITE_TRACKING_IMAGE=ghcr.io/ublue-os/bazzite:stable\n" +
+				fmt.Sprintf("M2W_DESKTOP_AUTOLOGIN=%t\n", p.DesktopAutologin)
+		}
 		return vars + string(common) + string(selector) + string(body), true
 	}
 	return "", false

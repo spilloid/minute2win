@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] - Unreleased
+
+- Add experimental Bazzite AMD/Intel KDE network installation through Fedora 45 Anaconda and a digest-pinned official OCI image. Reuse the existing profile selector, one-use boot ticket, disk guard, countdown and first-boot board reports.
+- Gate and hash-check the Fedora installer runtime alongside the kernel and initrd. Reject mutable or unsupported Bazzite images before arming, and provide capability-gated installation-tree metadata for native Anaconda boot.
+- Configure SSH-key-only administration, optional KDE automatic login and signed stable updates on the installed immutable system. Add an example profile and setup documentation. Native VM evidence and verification limits are recorded separately.
+
 ## [0.4.0] - 2026-11-14
 
 - Add an optional native Windows tray, macOS menu-bar and Linux StatusNotifier companion. It opens the existing console, shows server-reported armed/deploying counts and degraded/unreachable states, and offers local profiles/logs shortcuts. Quitting the icon leaves the host and deployments running. The companion does not access the operator token or mutate deployment state.

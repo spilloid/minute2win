@@ -626,7 +626,7 @@ func readProfile(path, name string) (*linuxProfile, error) {
 	}
 	switch p.Installer {
 	case "", "windows":
-	case "debian", "ubuntu", "proxmox":
+	case "debian", "ubuntu", "proxmox", "bazzite":
 		if p.Linux == nil {
 			return nil, fmt.Errorf("profile %s: linux configuration is required", name)
 		}

@@ -261,3 +261,10 @@ The corrected default-profile run completed imaging/reclaim and booted Windows 2
 - Native Windows fixture-menu interactions and duplicate/Quit checks passed; every request was a credential-free GET /api/state. Cropped synthetic menu capture inspected. Patched the Go build minimum after govulncheck found issues in local Go 1.27.0; scan with current Go 1.27.4 reported none. Release workflow mock regressions, actionlint, site-version and shell syntax checks passed. Full platform CI and signed artifact checks remain release gates. See validation/2026-11-14-desktop.md.
 
 - First PR CI passed native Windows/Linux/macOS ARM companion jobs, Windows/Linux server checks, UI, AppImage, scripts and docs. Pester caught the app bundle identifier containing the maintainer-brand string prohibited in build scripts. Changed the new app/LaunchAgent identifier consistently to `io.github.spilloid.minute2win.tray`; the image-host guard stays unchanged.
+
+## 2026-11-14 - Bazzite network installer
+
+- Requested for a Radeon RX 6600 gaming PC after its cluster workloads were retired. Added a native Fedora 45 Anaconda path for the official Bazzite AMD/Intel KDE image, with a pinned OCI digest, hash-checked stage2 and capability-gated tree metadata. The shared disk guard/countdown and one-use boot lifecycle remain in force.
+- Configure key-only administration, optional KDE automatic login, signed stable updates and the installed-system reporting service in OSTree's writable locations.
+- Native Windows vet/tests, Linux tests/race checks, generated shell syntax, native Kickstart validation and existing Playwright/overflow checks passed. Native VM install is still in progress. See validation/2026-11-14-bazzite.md for exact assets and remaining limits.
+- Independent adversarial review has not run. Keep the PR draft pending STD-001 review and the actual VM outcome; no merge, release or tag was performed.

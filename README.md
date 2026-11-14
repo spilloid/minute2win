@@ -2,7 +2,7 @@
 
 **Arm a machine. Network boot it. Install Windows.**
 
-The source also includes **experimental Debian, Ubuntu Server and Proxmox-through-Debian profiles**. They use the same arm-and-reboot workflow with distro-native installers. See the [Linux setup guide](docs/LINUX.md). Linux has automated server and disk-policy tests, but no recorded end-to-end VM deployment yet.
+The source also includes **experimental Debian, Ubuntu Server, Proxmox-through-Debian and Bazzite AMD/Intel KDE profiles**. They use the same arm-and-reboot workflow with distro-native installers. See the [Linux setup guide](docs/LINUX.md). Linux has automated server and disk-policy tests, but no recorded end-to-end VM deployment yet.
 
 You type a machine's MAC address into a web page and pick a Windows profile. The next time that machine network boots, it wipes its disk, installs a fresh, verified copy of Windows and reboots into it. You can watch each phase tick by on a live board. Want it brand new again later? Arm it and reboot. That's the whole loop.
 
@@ -18,7 +18,7 @@ You type a machine's MAC address into a web page and pick a Windows profile. The
 
 minute2win is for you if you reimage Windows PCs regularly (a lab, a repair bench, a classroom) and want it to be one click and a reboot instead of a USB stick and twenty minutes of clicking through setup.
 
-The current version is **0.4.0**. Here's honestly where Windows deployment stands:
+The current version is **0.5.0**. Here's honestly where Windows deployment stands:
 
 - **Works:** the whole chain has run end to end on a disposable UEFI virtual machine: network boot, imaging, booting the new Windows, and the first-boot setup script.
 - **Tested:** the server and console have automated tests, and the Windows build is code-signed.
@@ -94,7 +94,7 @@ A few things are worth knowing up front:
 | Do my first deployment on one Windows PC, step by step | [Walkthrough](docs/WALKTHROUGH.md) |
 | Set it up on my own network (Windows or Linux) | [Getting started](docs/GETTING_STARTED.md) |
 | Build WinPE and stage the boot files | [Boot assets](docs/BOOT_ASSETS.md) |
-| Network install Debian, Ubuntu Server or Proxmox | [Linux installation (experimental)](docs/LINUX.md) |
+| Network install Debian, Ubuntu Server, Proxmox or Bazzite | [Linux installation (experimental)](docs/LINUX.md) |
 | Write image and deployment profiles | [Manifests](docs/MANIFESTS.md) |
 | See every server, PXE and TFTP option | [Server reference](docs/SERVER.md) |
 | Arm machines from a script | [API](docs/API.md) |
