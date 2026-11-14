@@ -6,26 +6,36 @@
 # whenever it did. To move to a newer runtime: pick a dated release, download it, read it, and update both lines.
 set -euo pipefail
 VERSION="${1:?version}"; BIN="${2:?server binary}"; OUT="${3:?output file}"
+TRAY="${4:?tray binary}"
 RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64"
 RUNTIME_SHA256="2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d"
 cd "$(dirname "$0")/.."
 BIN="$(realpath "$BIN")"; OUT="$(realpath -m "$OUT")"
+TRAY="$(realpath "$TRAY")"
 W="$(mktemp -d)"; trap 'rm -rf "$W"' EXIT
 A="$W/minute2win.AppDir"
 mkdir -p "$A/usr/bin"
 install -m 0755 "$BIN" "$A/usr/bin/minute2win-server"
-cp -r manifests templates LICENSE THIRD_PARTY_NOTICES.md "$A/usr/bin/"   # the server finds manifests/ next to its executable
+install -m 0755 "$TRAY" "$A/usr/bin/minute2win-tray"
+cp -r manifests templates licenses LICENSE THIRD_PARTY_NOTICES.md "$A/usr/bin/"   # the server finds manifests/ next to its executable
 cat > "$A/AppRun" <<'RUN'
 #!/bin/sh
 # Runs in the caller's directory, so -data defaults to ./data there (not inside the read-only image).
-exec "${APPDIR:-$(dirname "$(readlink -f "$0")")}/usr/bin/minute2win-server" "$@"
+root="${APPDIR:-$(dirname "$(readlink -f "$0")")}/usr/bin"
+if [ "${1:-}" = --tray ]; then
+  shift
+  # Autostart must use the persistent AppImage path, not this temporary mount.
+  export M2W_TRAY_APPIMAGE="${APPIMAGE:-}"
+  exec "$root/minute2win-tray" "$@"
+fi
+exec "$root/minute2win-server" "$@"
 RUN
 chmod 0755 "$A/AppRun"
 cat > "$A/minute2win.desktop" <<DESK
 [Desktop Entry]
 Type=Application
 Name=minute2win-server
-Comment=Zero-touch Windows deployment server ($VERSION)
+Comment=Windows and experimental Linux deployment server ($VERSION)
 Exec=minute2win-server
 Icon=minute2win
 Categories=System;Network;

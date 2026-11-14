@@ -1,2 +1,3 @@
 server/linux/*.sh text eol=lf
 templates/linux/*.sh text eol=lf
+tools/macos-bundle.sh text eol=lf

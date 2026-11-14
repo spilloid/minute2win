@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0] - 2026-11-14
+
+- Add an optional native Windows tray, macOS menu-bar and Linux StatusNotifier companion. It opens the existing console, shows server-reported armed/deploying counts and degraded/unreachable states, and offers local profiles/logs shortcuts. Quitting the icon leaves the host and deployments running. The companion does not access the operator token or mutate deployment state.
+- Add per-user sign-in startup, duplicate-instance prevention and bounded status polling that clears stale state on failure. Keep the headless server dependency-free through a separate desktop module. Document the small native tray dependency and redistribute its licenses.
+- Include the companion in signed Windows and Linux packages and AppImage `--tray` mode. Add macOS Intel/Apple silicon archives with an ad-hoc-signed app bundle (not Developer ID signed or notarized). CI tests native desktop builds on all three platforms and smoke-tests packaged status polling. Linux target installation remains experimental and has no recorded end-to-end boot.
+- Require Go 1.27.4 or newer for both modules, including current standard-library security fixes. Release builds continue to use current stable Go.
+
 ## [0.3.0] - 2026-11-13
 
 ### Experimental Linux installation

@@ -1,5 +1,16 @@
 # Third-party notices
 
+## Native desktop companion
+
+`desktop/` links `fyne.io/systray` v1.12.2 (Apache-2.0),
+`github.com/godbus/dbus/v5` v5.2.4 (BSD-2-Clause), and
+`golang.org/x/sys` v0.50.0 (BSD-3-Clause). These are linked only into the optional
+companion. Unmodified license texts and copyright notices ship in `licenses/`.
+
+- https://github.com/fyne-io/systray
+- https://github.com/godbus/dbus
+- https://go.googlesource.com/sys
+
 ## htmx 2.0.11
 
 `server/web/static/htmx.min.js`, vendored unmodified from the npm package `htmx.org@2.0.11` (`dist/htmx.min.js`,

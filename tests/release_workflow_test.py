@@ -20,6 +20,7 @@ V = "0.1.1"
 GOOD = ["SIGNATURES.txt", f"minute2win-{V}-bootfiles.zip", f"minute2win-server-{V}-linux-amd64.tar.gz",
         f"minute2win-server-{V}-linux-arm64.tar.gz", f"minute2win-server-{V}-x86_64.AppImage",
         f"minute2win-server-{V}-windows-x64.zip"]
+GOOD += [f"minute2win-server-{V}-darwin-amd64.tar.gz", f"minute2win-server-{V}-darwin-arm64.tar.gz"]
 
 
 def allowlist(files):

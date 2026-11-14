@@ -11,6 +11,7 @@ Welcome! minute2win reinstalls Windows on a machine over the network. You arm th
 - **New here?** Take the [Walkthrough](WALKTHROUGH.md). It sets up everything on one Windows PC and ends with a Hyper-V virtual machine that reimages itself when you arm it. Every command and every screen you'll see is in there, plus an FAQ.
 - **Already know PXE and your network?** [Getting started](GETTING_STARTED.md) is the shorter version, for Windows or Linux.
 - **Installing Linux on the target?** [Linux installation](LINUX.md) covers the experimental Debian, Ubuntu Server and Proxmox profiles, which do not need WinPE.
+- **Keeping the host in the background?** The [desktop status icon](DESKTOP.md) shows armed/deploying counts and opens the console on Windows, macOS and Linux.
 - **Wondering how ready it is?** [Status](STATUS.md) says exactly what's been verified and what hasn't.
 
 > **Arming a machine means "wipe it".** An armed machine's disk is erased on its next network boot, without another prompt. Start with a throwaway virtual machine. And "a minute" is the goal, not a measured result yet.
