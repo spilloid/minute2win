@@ -45,7 +45,9 @@ jobs:
         working-directory: server
         run: go test ./...
   ui:
-    runs-on: ubuntu-latest
+    # Playwright 1.55's browser dependencies support 24.04, not the newer
+    # ubuntu-latest image. Keep this job on its supported test platform.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
