@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "deployment": { "name": "Ubuntu Server netboot (experimental)" },
+  "installer": "ubuntu",
+  "linux": {
+    "kernel": { "file": "ubuntu-vmlinuz", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "initrd": { "file": "ubuntu-initrd", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "iso": { "file": "ubuntu-server.iso", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "username": "m2w",
+    "authorizedKeys": ["REPLACE_WITH_YOUR_PUBLIC_SSH_KEY"],
+    "minSizeGB": 64,
+    "countdownSeconds": 10
+  }
+}

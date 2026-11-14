@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## [0.3.0] - 2026-11-13
+
+### Experimental Linux installation
+
+- Add `installer: debian`, `ubuntu` and `proxmox` profiles alongside the existing Windows schema. Debian uses generated preseed; Ubuntu uses generated NoCloud/autoinstall; Proxmox installs Debian trixie and runs a pinned, host-specific first-boot script. The included Proxmox template stages the kernel reboot, a static `vmbr0` uplink and package installation. Native Proxmox ISO boot is not implemented.
+- Add opt-in `-linux-assets` for local kernels, initrds, Ubuntu ISOs and scripts. Assets are confined to that directory and SHA-256 checked before arming and every download. Linux profiles do not need `-image-base`; Windows profiles still do. Linux configuration is captured when armed and delivered through per-deployment capabilities until completion, failure, expiry or server restart. One-time boot tickets and Windows boot behavior are retained.
+- Generate a disk guard that excludes USB/removable media, detected network ancestry, mounted/swap disks and active holders, applies a capacity minimum and runs an abort countdown before native partitioning. Install SSH-key-only sudo accounts and coarse progress/installed-system reports. Optional first-boot scripts can request a reboot with exit 75 without reporting premature completion.
+- Add hidden example profiles, a Linux setup guide and regression coverage for routing, profile validation, asset integrity, capability lifetime, range downloads, generated shell syntax and simulated disk selection. **No Linux VM or hardware installation is claimed as verified.**
+- Pre-release review: exclude disks with active holders on child partitions as well as whole disks, covering mounted LVM/dm-crypt/md volumes. The new partition-holder regression failed before the fix. Windows manifest tests now explicitly cover Windows profiles and reject Linux profiles in the WinPE engine. Server archives and the AppImage include the first-boot templates.
 
 - Documentation: README, the docs home (`docs/guide.md`), Getting started and Troubleshooting were rewritten for newcomers, in plainer, friendlier language. The README now says who minute2win is for, gives an honest status list, lists what you bring yourself, and moves the 0.2.0 upgrade details to a pointer to this changelog. Getting started and the docs home explain each piece before asking for it. Troubleshooting is grouped by when a problem shows up (starting the server, arming, network boot, WinPE, after install), and every earlier row is kept. The walkthrough gained an at-a-glance table of steps and a short explanation before WinPE, the profile and starting the servers; its commands are unchanged. No behavior changed, and the safety warnings, verification limits and demo-data captions are all kept.
 

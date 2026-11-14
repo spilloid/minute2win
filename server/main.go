@@ -221,7 +221,8 @@ func main() {
 	listen := flag.String("listen", "127.0.0.1:8080", "address to serve on; loopback by default. Machines being imaged must reach it, so for deployment use :8080 or a LAN address, with M2W_TOKEN set")
 	manifests := flag.String("manifests", "", "folder of deployment manifests (*.json); default: ./manifests, next to the executable, or ../manifests")
 	data := flag.String("data", "data", "folder for state.json (\"\" keeps state in memory)")
-	base := flag.String("image-base", "", "URL of your folder holding wimboot, BCD, boot.sdi and boot.wim (required to arm; there is no default)")
+	base := flag.String("image-base", "", "URL of your folder holding wimboot, BCD, boot.sdi and boot.wim (required for Windows profiles)")
+	linuxAssets := flag.String("linux-assets", "", "local folder of pinned Linux kernels, initrds, ISOs and optional first-boot scripts (required for Linux profiles)")
 	insecure := flag.Bool("insecure-no-token", false, "allow a network-reachable -listen without M2W_TOKEN: anyone who can reach the port can arm a disk wipe")
 	ttl := flag.Duration("arm-ttl", 2*time.Hour, "an arm that no machine boots within this long expires")
 	open := flag.Bool("open", runtime.GOOS == "windows", "open the web UI in a browser on start (default on Windows, so double-clicking works)")
@@ -250,12 +251,11 @@ func main() {
 		if err := checkImageBase(*base); err != nil {
 			log.Fatal(err)
 		}
-	} else {
-		log.Print("no -image-base: the console works, but nothing can be armed until the server is restarted with " +
-			"-image-base https://<your boot-asset host>/<folder> (the folder holding wimboot, BCD, boot.sdi and boot.wim)")
+	} else if *linuxAssets == "" {
+		log.Print("no boot assets: the console works; Windows arming needs -image-base, Linux arming needs -linux-assets")
 	}
 
-	s := &Server{ManifestDir: *manifests, ImageBase: *base, Token: token, ArmTTL: *ttl, ReportTTL: 3 * time.Hour, Now: time.Now}
+	s := &Server{ManifestDir: *manifests, ImageBase: *base, LinuxAssets: *linuxAssets, Token: token, ArmTTL: *ttl, ReportTTL: 3 * time.Hour, Now: time.Now}
 	if *data != "" {
 		if err := os.MkdirAll(*data, 0o700); err != nil {
 			log.Fatal(err)
@@ -267,9 +267,12 @@ func main() {
 	}
 	images := *base
 	if images == "" {
-		images = "(none: arming refused)"
+		images = "(no Windows assets)"
 	}
 	log.Printf("minute2win-server on %s, manifests %s, images %s", ln.Addr(), *manifests, images)
+	if *linuxAssets != "" {
+		log.Printf("Linux assets: %s (SHA-256 checked before arming and each download)", *linuxAssets)
+	}
 	if *pxe {
 		cfg := PXEConfig{DHCPPort: *pxeDHCP, ProxyPort: *pxeProxy, TFTPPort: *pxeTFTP, ClientPort: 68, Dir: *pxeDir,
 			FileX64: *pxeX64, FileBIOS: *pxeBIOS, FileARM64: *pxeARM, FileIA32: *pxeIA32}

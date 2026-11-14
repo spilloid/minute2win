@@ -1,0 +1,2 @@
+server/linux/*.sh text eol=lf
+templates/linux/*.sh text eol=lf

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "deployment": { "name": "Debian netboot (experimental)" },
+  "installer": "debian",
+  "linux": {
+    "suite": "trixie",
+    "kernel": { "file": "debian-linux", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "initrd": { "file": "debian-initrd.gz", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "username": "m2w",
+    "authorizedKeys": ["REPLACE_WITH_YOUR_PUBLIC_SSH_KEY"],
+    "minSizeGB": 64,
+    "countdownSeconds": 10
+  }
+}

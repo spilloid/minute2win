@@ -14,7 +14,7 @@ W="$(mktemp -d)"; trap 'rm -rf "$W"' EXIT
 A="$W/minute2win.AppDir"
 mkdir -p "$A/usr/bin"
 install -m 0755 "$BIN" "$A/usr/bin/minute2win-server"
-cp -r manifests LICENSE THIRD_PARTY_NOTICES.md "$A/usr/bin/"   # the server finds manifests/ next to its executable
+cp -r manifests templates LICENSE THIRD_PARTY_NOTICES.md "$A/usr/bin/"   # the server finds manifests/ next to its executable
 cat > "$A/AppRun" <<'RUN'
 #!/bin/sh
 # Runs in the caller's directory, so -data defaults to ./data there (not inside the read-only image).

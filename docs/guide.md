@@ -10,6 +10,7 @@ Welcome! minute2win reinstalls Windows on a machine over the network. You arm th
 
 - **New here?** Take the [Walkthrough](WALKTHROUGH.md). It sets up everything on one Windows PC and ends with a Hyper-V virtual machine that reimages itself when you arm it. Every command and every screen you'll see is in there, plus an FAQ.
 - **Already know PXE and your network?** [Getting started](GETTING_STARTED.md) is the shorter version, for Windows or Linux.
+- **Installing Linux on the target?** [Linux installation](LINUX.md) covers the experimental Debian, Ubuntu Server and Proxmox profiles, which do not need WinPE.
 - **Wondering how ready it is?** [Status](STATUS.md) says exactly what's been verified and what hasn't.
 
 > **Arming a machine means "wipe it".** An armed machine's disk is erased on its next network boot, without another prompt. Start with a throwaway virtual machine. And "a minute" is the goal, not a measured result yet.
@@ -33,6 +34,7 @@ When it boots, the arm is used up and the board fills in each phase's lap time:
 | [Walkthrough](WALKTHROUGH.md) | Do a first deployment on one Windows PC, start to finish |
 | [Getting started](GETTING_STARTED.md) | Set up on your own network, on Windows or Linux |
 | [Boot assets](BOOT_ASSETS.md) | Build WinPE, lay out the boot files, update the engine scripts |
+| [Linux installation](LINUX.md) | Prepare experimental Debian, Ubuntu Server or Proxmox installations |
 | [Manifests](MANIFESTS.md) | Configure the image, disk sizes, setup screens, countdown and reporting |
 | [Server](SERVER.md) | Look up every server flag, the built-in PXE and TFTP |
 | [API](API.md) | Arm, disarm and read state from a script |

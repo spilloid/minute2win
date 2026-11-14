@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "deployment": { "name": "Proxmox via Debian (experimental)" },
+  "installer": "proxmox",
+  "linux": {
+    "suite": "trixie",
+    "hostname": "pve.lab.internal",
+    "kernel": { "file": "debian-linux", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "initrd": { "file": "debian-initrd.gz", "sha256": "REPLACE_WITH_VERIFIED_SHA256" },
+    "firstBoot": { "file": "proxmox-firstboot.sh", "sha256": "REPLACE_WITH_REVIEWED_SCRIPT_SHA256" },
+    "username": "m2w",
+    "authorizedKeys": ["REPLACE_WITH_YOUR_PUBLIC_SSH_KEY"],
+    "minSizeGB": 64,
+    "countdownSeconds": 10
+  }
+}

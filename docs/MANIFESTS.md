@@ -4,6 +4,8 @@ title: Manifest reference
 
 # Manifest reference
 
+This page describes Windows profiles. For experimental Linux profiles (`installer: debian`, `ubuntu` or `proxmox`), see [Linux installation](LINUX.md). Omitting `installer`, or using `windows`, keeps the original Windows schema. Unknown installer types are refused.
+
 ```json
 {
   "schemaVersion": 1,

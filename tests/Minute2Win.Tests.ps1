@@ -32,8 +32,15 @@ Describe 'Get-M2WValue' {
 }
 
 Describe 'Test-M2WManifest' {
-    It 'accepts every shipped manifest' -ForEach @(Get-ChildItem (Join-Path (Split-Path $PSScriptRoot -Parent) 'manifests') -Filter *.json -Recurse | ForEach-Object FullName) {
+    It 'accepts every shipped Windows manifest' -ForEach @(Get-ChildItem (Join-Path (Split-Path $PSScriptRoot -Parent) 'manifests') -Filter *.json -Recurse | Where-Object {
+        $candidateProfile = Get-Content $_.FullName -Raw | ConvertFrom-Json
+        -not $candidateProfile.installer -or $candidateProfile.installer -eq 'windows'
+    } | ForEach-Object FullName) {
         Test-M2WManifest (Get-Content $_ -Raw | ConvertFrom-Json) | Should -BeNullOrEmpty
+    }
+    It 'refuses Linux profiles in the Windows deployment engine' -ForEach @('debian', 'ubuntu', 'proxmox') {
+        $manifest = Get-Content (Join-Path $repo "manifests/examples/$_.json") -Raw | ConvertFrom-Json
+        @(Test-M2WManifest $manifest).Count | Should -BeGreaterThan 0
     }
     It 'rejects <name>' -ForEach @(
         @{ name = 'a non-https source'; path = 'image.source'; value = 'smb'; expect = 'not supported' }

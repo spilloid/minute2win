@@ -35,13 +35,15 @@ type Armed struct {
 	// Ticket: the secret part of the one URL that consumes this arm (/boot/{mac}/{ticket}). Only GET /boot/{mac}'s response
 	// carries it; never shown in /api/state or the console, never written to the state file. Random per arm, so it dies with
 	// the arm (consumed, disarmed, expired, or dropped at restart).
-	Ticket string `json:"-"`
+	Ticket string        `json:"-"`
+	Linux  *linuxProfile `json:"-"` // validated snapshot; never reload a different installer after arming
 }
 
 // Deployment: one consumed arm, updated by the engine's reports.
 type Deployment struct {
 	MAC       string             `json:"mac"`
 	Manifest  string             `json:"manifest"`
+	Installer string             `json:"installer,omitempty"`
 	BootedAt  time.Time          `json:"bootedAt"`
 	UpdatedAt time.Time          `json:"updatedAt"`
 	Phase     string             `json:"phase"`
@@ -52,7 +54,8 @@ type Deployment struct {
 	Timing    map[string]float64 `json:"timing,omitempty"`
 	// Key authenticates the engine's reports. It is only in the manifest the target fetches at boot (served until the first report
 	// or manifestWindow, so iPXE can retry) and never shown by /api/state. Knowing a MAC alone does not let anyone forge an outcome.
-	Key string `json:"key,omitempty"`
+	Key   string        `json:"key,omitempty"`
+	Linux *linuxProfile `json:"-"` // boot delivery only; intentionally not restored after a server restart
 }
 
 type state struct {
@@ -63,6 +66,7 @@ type state struct {
 type Server struct {
 	ManifestDir string        // *.json deployment profiles
 	ImageBase   string        // where wimboot, BCD, boot.sdi, boot.wim live
+	LinuxAssets string        // explicitly enabled local Linux assets, confined with os.OpenRoot
 	StatePath   string        // "" = memory only
 	Token       string        // "" = arming needs no token
 	ArmTTL      time.Duration // an arm nobody boots expires
@@ -206,6 +210,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /boot/{mac}", s.boot)
 	mux.HandleFunc("GET /boot/{mac}/{ticket}", s.boot)
 	mux.HandleFunc("GET /manifest/{mac}", s.manifest)
+	mux.HandleFunc("GET /linux/{mac}/{key}/{file}", s.linuxFile)
 	mux.HandleFunc("POST /api/report", requireJSON(s.report))
 	// Every state-changing route (arm, disarm, the UI forms, reports) refuses cross-origin browser requests, so a page on another
 	// site cannot arm a wipe. Requests without browser headers (curl, scripts, the WinPE engine) are not affected. That protection
@@ -361,16 +366,21 @@ func (s *Server) doArm(rawMAC, manifest string) (*Armed, error) {
 	if !nameRe.MatchString(manifest) {
 		return nil, errBadManifest
 	}
-	if s.ImageBase == "" {
-		return nil, errNoImageBase
+	lp, err := readProfile(filepath.Join(s.ManifestDir, manifest+".json"), manifest)
+	if err != nil {
+		return nil, err
 	}
-	if err := checkProfile(filepath.Join(s.ManifestDir, manifest+".json"), manifest); err != nil {
+	if lp == nil {
+		if s.ImageBase == "" {
+			return nil, errNoImageBase
+		}
+	} else if err := s.checkLinuxAssets(lp); err != nil {
 		return nil, err
 	}
 	now := s.Now()
 	ticket := make([]byte, 16)
 	_, _ = rand.Read(ticket)
-	a := &Armed{MAC: mac, Manifest: manifest, ArmedAt: now, Expires: now.Add(s.ArmTTL), Ticket: hex.EncodeToString(ticket)}
+	a := &Armed{MAC: mac, Manifest: manifest, ArmedAt: now, Expires: now.Add(s.ArmTTL), Ticket: hex.EncodeToString(ticket), Linux: lp}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.degraded {
@@ -457,12 +467,21 @@ func (s *Server) boot(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, notArmed)
 		return
 	}
+	if a.Linux != nil && !linuxOriginRe.MatchString(origin(r)) {
+		s.mu.Unlock()
+		http.Error(w, "invalid boot origin", http.StatusBadRequest)
+		return
+	}
 	key := make([]byte, 16)
 	_, _ = rand.Read(key)
 	prev := s.st.Deployments[mac]
 	delete(s.st.Armed, mac)
 	now := s.Now()
-	s.st.Deployments[mac] = &Deployment{MAC: mac, Manifest: a.Manifest, BootedAt: now, UpdatedAt: now, Phase: "boot", Status: "booting", Key: hex.EncodeToString(key)}
+	d := &Deployment{MAC: mac, Manifest: a.Manifest, BootedAt: now, UpdatedAt: now, Phase: "boot", Status: "booting", Key: hex.EncodeToString(key), Linux: a.Linux}
+	if a.Linux != nil {
+		d.Installer = a.Linux.Installer
+	}
+	s.st.Deployments[mac] = d
 	// Fail closed: if the consumed arm can't be saved, a restart would bring it back, so don't deploy at all.
 	if err := s.commit(func() {
 		s.st.Armed[mac] = a
@@ -477,6 +496,10 @@ func (s *Server) boot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Unlock()
+	if a.Linux != nil {
+		fmt.Fprint(w, linuxBootScript(origin(r), mac, d.Key, a.Linux))
+		return
+	}
 	base := strings.TrimRight(s.ImageBase, "/")
 	fmt.Fprintf(w, "#!ipxe\necho minute2win: %s armed for %s, deploying (this wipes the disk)\n"+
 		"kernel %s/wimboot\ninitrd %s/BCD BCD\ninitrd %s/boot.sdi boot.sdi\ninitrd --name manifest.json %s/manifest/%s manifest.json\ninitrd %s/boot.wim boot.wim\nboot\n",
@@ -490,7 +513,7 @@ func (s *Server) manifest(w http.ResponseWriter, r *http.Request) {
 	// closes it, which keeps the report key from being fetched later by anyone who learns the MAC from the board.
 	s.mu.Lock()
 	d := s.st.Deployments[mac]
-	if d == nil || d.Status != "booting" || s.Now().Sub(d.BootedAt) > manifestWindow {
+	if d == nil || (d.Installer != "" && d.Installer != "windows") || d.Status != "booting" || s.Now().Sub(d.BootedAt) > manifestWindow {
 		s.mu.Unlock()
 		http.NotFound(w, r)
 		return
@@ -577,32 +600,53 @@ func placeholderHost(h string) bool {
 	return false
 }
 
-// checkProfile refuses, at arm time, a profile that could not deploy: not JSON (a BOM included), or an image URL or hash that is
-// missing or still a placeholder. The engine checks the whole manifest again in WinPE; this only stops an arm that is bound to
-// fail after it has been consumed, or that would fetch an image from a host the operator never chose.
+// checkProfile validates the Windows image URL/hash or Linux installer settings.
+// doArm also verifies Linux files; the Windows engine validates again in WinPE.
 func checkProfile(path, name string) error {
+	_, err := readProfile(path, name)
+	return err
+}
+
+// A missing installer is the original Windows schema. Unknown installers fail closed.
+func readProfile(path, name string) (*linuxProfile, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return errBadManifest
+		return nil, errBadManifest
 	}
 	var p struct {
-		Image struct {
+		Installer string        `json:"installer"`
+		Linux     *linuxProfile `json:"linux"`
+		Image     struct {
 			URI    string `json:"uri"`
 			SHA256 string `json:"sha256"`
 		} `json:"image"`
 	}
 	if err := json.Unmarshal(b, &p); err != nil {
-		return fmt.Errorf("profile %s is not valid JSON (%v); save it as UTF-8 without a byte-order mark", name, err)
+		return nil, fmt.Errorf("profile %s is not valid JSON (%v); save it as UTF-8 without a byte-order mark", name, err)
+	}
+	switch p.Installer {
+	case "", "windows":
+	case "debian", "ubuntu", "proxmox":
+		if p.Linux == nil {
+			return nil, fmt.Errorf("profile %s: linux configuration is required", name)
+		}
+		p.Linux.Installer = p.Installer
+		if err := p.Linux.validate(); err != nil {
+			return nil, fmt.Errorf("profile %s: %w", name, err)
+		}
+		return p.Linux, nil
+	default:
+		return nil, fmt.Errorf("profile %s: unknown installer %q", name, p.Installer)
 	}
 	u, err := url.Parse(p.Image.URI)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
-		return fmt.Errorf("profile %s: image.uri must be the https:// URL of your own Windows image", name)
+		return nil, fmt.Errorf("profile %s: image.uri must be the https:// URL of your own Windows image", name)
 	}
 	if placeholderHost(u.Hostname()) {
-		return fmt.Errorf("profile %s: image.uri still points at the placeholder host %s; set your own image URL and its SHA-256", name, u.Hostname())
+		return nil, fmt.Errorf("profile %s: image.uri still points at the placeholder host %s; set your own image URL and its SHA-256", name, u.Hostname())
 	}
 	if !sha256Re.MatchString(p.Image.SHA256) || strings.Trim(p.Image.SHA256, "0") == "" {
-		return fmt.Errorf("profile %s: image.sha256 must be the SHA-256 of your image (64 hex digits, not a placeholder)", name)
+		return nil, fmt.Errorf("profile %s: image.sha256 must be the SHA-256 of your image (64 hex digits, not a placeholder)", name)
 	}
-	return nil
+	return nil, nil
 }
