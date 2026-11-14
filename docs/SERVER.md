@@ -25,7 +25,7 @@ it works offline. `/api/*` stays as JSON for scripts.
   that for an isolated lab network where anyone who can reach the port may wipe machines; the server then logs a warning. For a
   host name (`-listen localhost:8080`), the decision is made on the address actually bound, before anything is served or PXE
   starts, so a name whose DNS answer changes between the check and the bind cannot open a network listener without a token.
-- **No default image host.** `-image-base` has no default. Without it the console runs, but every arm is refused with a message
+- **No default image host.** `-image-base` has no default. Without it the console runs, but every Windows arm is refused with a message
   saying to restart with `-image-base`. A profile whose image URL is missing, not `https://`, or still a documentation placeholder
   (`example.com`, `example.net`, `example.org`, `*.example`, `*.invalid`), or whose SHA-256 is missing or all zeros, or which is
   not valid JSON (a byte-order mark included), is refused at arm time with the reason.
@@ -61,12 +61,13 @@ runs the `chain .../boot/${net0/mac}` line above.
 | -listen | 127.0.0.1:8080 | HTTP address. Loopback previews the console; deployment needs an address targets can reach (`:8080` or a LAN address) and `M2W_TOKEN` |
 | -manifests | Auto-detected | Profiles directory: current directory, executable directory, then ../manifests |
 | -image-base | none (required to arm) | URL of your folder serving wimboot, BCD, boot.sdi and boot.wim. Must be `http://` or `https://`; placeholder hosts are refused at startup |
+| -linux-assets | none (required for Linux profiles) | Dedicated directory containing the Linux assets referenced by profile filenames; full SHA-256 verification before arming and delivery |
 | -insecure-no-token | off | Allow a network-reachable `-listen` without `M2W_TOKEN`: anyone who can reach the port can arm a disk wipe |
 | -data | data | State directory; an empty value keeps state in memory |
 | -arm-ttl | 2h | Expiration of unused arms |
 | -open | true on Windows | Open browser at startup |
 
-`M2W_TOKEN` is an environment variable, not a command-line flag. Boot assets and the image are served separately from the console. Read [Getting started](GETTING_STARTED.md) for the complete setup.
+`M2W_TOKEN` is an environment variable, not a command-line flag. Windows boot assets and the image are served separately from the console. Linux profiles use the server's opt-in, capability-gated asset handler and do not need `-image-base`. Read [Getting started](GETTING_STARTED.md) for Windows setup or [Linux installation](LINUX.md) for experimental Linux targets.
 
 **Changed in 0.2.0.** Release 0.1.2 and earlier listened on every interface by default, treated the token as optional,
 defaulted `-image-base` to the maintainer's restricted host and did not check where a request came from. With those builds, pass

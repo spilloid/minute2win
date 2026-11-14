@@ -15,6 +15,7 @@ The console and JSON API share one server. This reference describes the current 
 | GET /boot/{mac} | iPXE script; for an armed MAC it chains `/boot/{mac}/{ticket}`. Changes nothing | None |
 | GET /boot/{mac}/{ticket} | The deployment boot script; consumes the arm | The arm's one-time ticket (only in the response above); no operator token |
 | GET /manifest/{mac} | Manifest for a booting deployment | Short-lived boot delivery window |
+| GET /linux/{mac}/{key}/{file} | Selected Linux assets and generated seed/guard/first-boot configuration | Random deployment capability; active deployment, at most three hours; not restored after server restart |
 | POST /api/report | Engine phase/timing report | Deployment report key; `Content-Type: application/json` |
 
 ## Request rules
@@ -22,7 +23,7 @@ The console and JSON API share one server. This reference describes the current 
 - **Cross-origin browser requests are refused.** Every POST and DELETE above, and the console's own form routes (`/ui/arm`, `/ui/disarm`), answer 403 to a browser request from another origin (`Sec-Fetch-Site`, or an `Origin` that does not match `Host`). Requests without those headers, such as curl, scripts and the WinPE engine, are not affected. Those headers are often absent on a plain GET (an `<img>` over plain HTTP to a LAN address sends neither), which is why the GET that consumes an arm needs the one-time ticket from `GET /boot/{mac}`'s response, a response another site's page cannot read.
 - **JSON mutations need a JSON content type.** `POST /api/armed` and `POST /api/report` answer 415 unless `Content-Type` is `application/json` (parameters such as `charset` are fine).
 - **Without a token, address the server by IP address or `localhost`.** With no `M2W_TOKEN`, arming and disarming are refused (403) when the request's `Host` is any other name, so a DNS-rebinding web page cannot reach them. With a token, any host name works.
-- **Without `-image-base`, every arm is refused** (400), and so is a profile whose image URL or hash is missing or a placeholder; the response says why.
+- **Windows profiles require `-image-base`** (400 otherwise), and a profile whose image URL or hash is missing or a placeholder is refused. **Linux profiles require `-linux-assets`** and all selected files must match their pinned SHA-256 before arming. See [Linux installation](LINUX.md).
 
 ## Read state
 
@@ -50,3 +51,5 @@ A successful DELETE returns 204. If the arm no longer exists it returns 404; if 
 `GET /boot/{mac}` does not consume an arm; it only hands iPXE the one-time URL. Do not follow that URL with curl for an armed target: it consumes the arm and starts server bookkeeping. It is the deployment entry point, not a health endpoint. Use `/api/state` to inspect the server.
 
 The engine manages report delivery. Manifest delivery is available while booting until the first report or up to ten minutes. A deployment key authenticates reporting but does not authenticate the machine fetching the manifest; see [known issues](STATUS.md).
+
+Linux uses `/linux/{mac}/{key}/` instead of `/manifest/{mac}`. Its capability is included only in the consumed boot script, omitted from public state, and remains valid while booting/running until the three-hour report deadline. File selectors are `kernel`, `initrd`, Ubuntu-only `image.iso`, optional `firstboot.sh`, `guard.sh`, `finish.sh`, `firstboot-wrapper.sh`, Debian/Proxmox-only `preseed.cfg`, and Ubuntu-only `user-data`/`meta-data`. Unknown selectors return 404. Asset mismatches return 503 without serving any file bytes. Range downloads are supported after full-file verification. Progress reports close the original WinPE manifest window but do not close Linux seed delivery.

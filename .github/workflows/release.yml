@@ -71,15 +71,35 @@ jobs:
           for arch in amd64 arm64; do
             d="minute2win-server-$V-linux-$arch"; mkdir -p "$d"
             (cd server && CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "../$d/minute2win-server" .)
-            cp -r manifests LICENSE THIRD_PARTY_NOTICES.md "$d/"
+            cp -r manifests templates LICENSE THIRD_PARTY_NOTICES.md "$d/"
             tar czf "out/$d.tar.gz" "$d"
           done
           tools/appimage.sh "$V" "minute2win-server-$V-linux-amd64/minute2win-server" "out/minute2win-server-$V-x86_64.AppImage"
           # The Windows server goes to the signing job unsigned; it is zipped only after it is signed.
           (cd server && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "../stage-win/minute2win-server/minute2win-server.exe" .)
-          cp -r manifests LICENSE THIRD_PARTY_NOTICES.md stage-win/minute2win-server/
+          cp -r manifests templates LICENSE THIRD_PARTY_NOTICES.md stage-win/minute2win-server/
           tools/stage.sh stage
           (cd stage && zip -qr "../out/minute2win-$V-bootfiles.zip" windows11)
+      - name: Smoke test packaged Linux amd64 artifacts
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          V="${TAG#v}"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          tar xzf "out/minute2win-server-$V-linux-amd64.tar.gz" -C "$work"
+          server="$work/minute2win-server-$V-linux-amd64/minute2win-server"
+          test -f "$work/minute2win-server-$V-linux-amd64/templates/linux/proxmox-firstboot.sh"
+          "$server" -help >"$work/help" 2>&1
+          grep -q -- '-linux-assets' "$work/help"
+          "$server" -listen 127.0.0.1:18082 -data "" -open=false >"$work/server.log" 2>&1 &
+          pid=$!
+          for _ in $(seq 50); do curl -sf http://127.0.0.1:18082/api/state >"$work/state.json" && break; sleep 0.1; done
+          curl -fsS http://127.0.0.1:18082/api/state
+          kill "$pid"
+          APPIMAGE_EXTRACT_AND_RUN=1 "out/minute2win-server-$V-x86_64.AppImage" -help >"$work/appimage-help" 2>&1
+          grep -q -- '-linux-assets' "$work/appimage-help"
       - uses: actions/upload-artifact@v4
         with:
           name: linux-and-boot-assets

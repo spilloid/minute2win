@@ -4,7 +4,11 @@ title: Status and known issues
 
 # Status and known issues
 
-Current code version: **0.2.0**. This is an early release for evaluation. The server and helpers have automated checks; a disposable x64 UEFI VM has completed imaging and booted the installed Windows disk. The default profile reached the normal country-selection OOBE screen after a long setup delay; logs confirm automatic first-boot bootstrap success. The optional local-account profile reached the desktop automatically with verified admin membership and main-answer-file deletion. Next-logon password-change behavior and complete cached-XML cleanup remain unverified. No measured result supports the one-minute goal yet.
+Current code version: **0.3.0**. This is an early release for evaluation. The server and helpers have automated checks; a disposable x64 UEFI VM has completed imaging and booted the installed Windows disk. The default profile reached the normal country-selection OOBE screen after a long setup delay; logs confirm automatic first-boot bootstrap success. The optional local-account profile reached the desktop automatically with verified admin membership and main-answer-file deletion. Next-logon password-change behavior and complete cached-XML cleanup remain unverified. No measured result supports the one-minute goal yet.
+
+**Linux is experimental:** Debian preseed, Ubuntu Server autoinstall and Proxmox-through-Debian boot/provisioning paths are implemented with automated server and simulated disk-policy checks. No Linux installer, custom first-boot script or Proxmox conversion has completed a recorded VM/hardware run. Existing Windows verification does not cover these paths. See [Linux installation](LINUX.md) for setup, limitations and VM validation steps.
+
+The [2026-11-13 Linux server validation record](validation/2026-11-13-linux-server.md) lists the checks performed and their limits.
 
 ## Verification
 
