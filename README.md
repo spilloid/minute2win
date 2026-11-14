@@ -18,7 +18,7 @@ You type a machine's MAC address into a web page and pick a Windows profile. The
 
 minute2win is for you if you reimage Windows PCs regularly (a lab, a repair bench, a classroom) and want it to be one click and a reboot instead of a USB stick and twenty minutes of clicking through setup.
 
-The current version is **0.3.0**. Here's honestly where Windows deployment stands:
+The current version is **0.4.0**. Here's honestly where Windows deployment stands:
 
 - **Works:** the whole chain has run end to end on a disposable UEFI virtual machine: network boot, imaging, booting the new Windows, and the first-boot setup script.
 - **Tested:** the server and console have automated tests, and the Windows build is code-signed.
@@ -64,6 +64,10 @@ This preview is safe. It only listens on your own PC, and it won't arm anything 
 **Ready for a real deployment?** Follow the [walkthrough](docs/WALKTHROUGH.md). It builds a complete lab on one Windows PC with a Hyper-V virtual machine, with every command spelled out.
 
 **Upgrading from 0.1.2?** 0.2.0 changed some defaults for safety: it listens on loopback only, needs a token on the network, and has no built-in image host. The [changelog](CHANGELOG.md) has the upgrade steps.
+
+## Keep the host in the background
+
+The release includes a native status icon for Windows, macOS and Linux. It shows host status and armed/deploying counts, opens the console, and can start at sign-in. Quitting the icon leaves the server running. See [Desktop status icon](docs/DESKTOP.md) for setup and platform limits.
 
 ## What happens when an armed machine boots
 

@@ -44,6 +44,32 @@ jobs:
       - name: Test on Windows
         working-directory: server
         run: go test ./...
+  desktop:
+    name: Native tray (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Vet and test companion
+        working-directory: desktop
+        run: |
+          go vet ./...
+          go test -race ./...
+          go build ./...
+      - name: Build and check macOS bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          arch=amd64
+          if [ "$(uname -m)" = arm64 ]; then arch=arm64; fi
+          tools/macos-bundle.sh "$(cat VERSION)" "$arch"
+          "dist/minute2win-server-$(cat VERSION)-darwin-$arch/minute2win Tray.app/Contents/MacOS/minute2win-tray" -help
   ui:
     # Playwright 1.55's browser dependencies support 24.04, not the newer
     # ubuntu-latest image. Keep this job on its supported test platform.
@@ -96,7 +122,8 @@ jobs:
           set -euo pipefail
           sudo apt-get install -y squashfs-tools
           (cd server && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../minute2win-server .)
-          tools/appimage.sh "$(cat VERSION)" minute2win-server "out/minute2win-server-$(cat VERSION)-x86_64.AppImage"
+          (cd desktop && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../minute2win-tray .)
+          tools/appimage.sh "$(cat VERSION)" minute2win-server "out/minute2win-server-$(cat VERSION)-x86_64.AppImage" minute2win-tray
       # Runs without FUSE (hosted runners have none) by extracting itself; the image content is the same.
       - name: Smoke test
         env:
@@ -109,6 +136,7 @@ jobs:
           pid=$!
           for _ in $(seq 50); do curl -sf http://127.0.0.1:18081/api/state >/dev/null && break; sleep 0.1; done
           curl -sf http://127.0.0.1:18081/api/state >/dev/null
+          "$img" --tray -url http://127.0.0.1:18081 -check | grep -q 'Host online'
           curl -s http://127.0.0.1:18081/boot/aa:bb:cc:dd:ee:ff | grep -q '^exit 1$'   # an unarmed MAC boots its disk
           kill "$pid"
       - uses: actions/upload-artifact@v4

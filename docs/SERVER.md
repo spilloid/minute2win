@@ -4,6 +4,8 @@ title: Server reference
 
 # Server reference
 
+For a host running in the background, use the optional [desktop status icon](DESKTOP.md). It opens this console and reports host status without controlling the server lifecycle.
+
 `minute2win-server` is a single Go binary with the page built in. It runs next to dnsmasq (or answers PXE itself with `-pxe`, below) and is where the guard lives. The page uses
 **htmx**: the server renders HTML fragments (`server/web/templates/`, escaped by `html/template`) and `hx-*` attributes handle polling,
 arming and disarming, with no app JavaScript. htmx is vendored, not loaded from a CDN, so

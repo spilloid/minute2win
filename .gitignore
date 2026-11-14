@@ -6,3 +6,6 @@ dist/
 _site/
 .jekyll-cache/
 docs/.jekyll-cache/
+/desktop/desktop
+/desktop/desktop.exe
+/minute2win-tray

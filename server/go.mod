@@ -1,3 +1,3 @@
 module github.com/spilloid/minute2win/server
 
-go 1.27
+go 1.27.4

@@ -71,13 +71,15 @@ jobs:
           for arch in amd64 arm64; do
             d="minute2win-server-$V-linux-$arch"; mkdir -p "$d"
             (cd server && CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "../$d/minute2win-server" .)
-            cp -r manifests templates LICENSE THIRD_PARTY_NOTICES.md "$d/"
+            (cd desktop && CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "../$d/minute2win-tray" .)
+            cp -r manifests templates licenses LICENSE THIRD_PARTY_NOTICES.md "$d/"
             tar czf "out/$d.tar.gz" "$d"
           done
-          tools/appimage.sh "$V" "minute2win-server-$V-linux-amd64/minute2win-server" "out/minute2win-server-$V-x86_64.AppImage"
+          tools/appimage.sh "$V" "minute2win-server-$V-linux-amd64/minute2win-server" "out/minute2win-server-$V-x86_64.AppImage" "minute2win-server-$V-linux-amd64/minute2win-tray"
           # The Windows server goes to the signing job unsigned; it is zipped only after it is signed.
           (cd server && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "../stage-win/minute2win-server/minute2win-server.exe" .)
-          cp -r manifests templates LICENSE THIRD_PARTY_NOTICES.md stage-win/minute2win-server/
+          (cd desktop && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H=windowsgui -s -w" -o "../stage-win/minute2win-server/minute2win-tray.exe" .)
+          cp -r manifests templates licenses LICENSE THIRD_PARTY_NOTICES.md stage-win/minute2win-server/
           tools/stage.sh stage
           (cd stage && zip -qr "../out/minute2win-$V-bootfiles.zip" windows11)
       - name: Smoke test packaged Linux amd64 artifacts
@@ -97,6 +99,8 @@ jobs:
           pid=$!
           for _ in $(seq 50); do curl -sf http://127.0.0.1:18082/api/state >"$work/state.json" && break; sleep 0.1; done
           curl -fsS http://127.0.0.1:18082/api/state
+          "$work/minute2win-server-$V-linux-amd64/minute2win-tray" -url http://127.0.0.1:18082 -check | grep -q 'Host online'
+          APPIMAGE_EXTRACT_AND_RUN=1 "out/minute2win-server-$V-x86_64.AppImage" --tray -url http://127.0.0.1:18082 -check | grep -q 'Host online'
           kill "$pid"
           APPIMAGE_EXTRACT_AND_RUN=1 "out/minute2win-server-$V-x86_64.AppImage" -help >"$work/appimage-help" 2>&1
           grep -q -- '-linux-assets' "$work/appimage-help"
@@ -109,6 +113,45 @@ jobs:
         with:
           name: unsigned-windows
           path: stage-win/
+          if-no-files-found: error
+
+  macos:
+    name: macOS server and menu-bar bundle (${{ matrix.arch }})
+    needs: build
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Build bundle and smoke test
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          V="${TAG#v}"
+          tools/macos-bundle.sh "$V" "$ARCH"
+          d="$PWD/dist/minute2win-server-$V-darwin-$ARCH"
+          "$d/minute2win-server" -listen 127.0.0.1:18083 -data "" -open=false > /tmp/m2w-mac.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid"' EXIT
+          for _ in $(seq 50); do curl -sf http://127.0.0.1:18083/api/state >/dev/null && break; sleep 0.1; done
+          "$d/minute2win Tray.app/Contents/MacOS/minute2win-tray" -url http://127.0.0.1:18083 -check | grep -q 'Host online'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: out/*.tar.gz
           if-no-files-found: error
 
   sign:
@@ -182,16 +225,18 @@ jobs:
         shell: pwsh
         env:
           SIGNING_EXPECTED_SUBJECT: ${{ vars.SIGNING_EXPECTED_SUBJECT }}
-        run: ./scripts/verify-signature.ps1 -Files stage-win/minute2win-server/minute2win-server.exe -ExpectedSubject $env:SIGNING_EXPECTED_SUBJECT
+        run: ./scripts/verify-signature.ps1 -Files (Get-ChildItem stage-win/minute2win-server/*.exe).FullName -ExpectedSubject $env:SIGNING_EXPECTED_SUBJECT
       - name: Zip, record signatures
         shell: pwsh
         run: |
           $v = $env:TAG.TrimStart('v'); New-Item -ItemType Directory -Force out | Out-Null
           Compress-Archive -Path stage-win/minute2win-server -DestinationPath "out/minute2win-server-$v-windows-x64.zip"
-          $sig = Get-AuthenticodeSignature stage-win/minute2win-server/minute2win-server.exe
           "file  status  signer" | Set-Content out/SIGNATURES.txt
-          "minute2win-server.exe  $($sig.Status)  $($sig.SignerCertificate.Subject)" | Add-Content out/SIGNATURES.txt
-          if ($sig.Status -ne 'Valid') { throw "Windows does not consider the signed executable Valid: $($sig.Status)" }
+          Get-ChildItem stage-win/minute2win-server/*.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            "$($_.Name)  $($sig.Status)  $($sig.SignerCertificate.Subject)" | Add-Content out/SIGNATURES.txt
+            if ($sig.Status -ne 'Valid') { throw "Windows does not consider $($_.Name) Valid: $($sig.Status)" }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: signed-windows
@@ -201,7 +246,7 @@ jobs:
   # Attaches everything together, only after every file is signed and verified. A failure above attaches nothing.
   publish:
     name: Attach assets to the release
-    needs: [build, sign]
+    needs: [build, sign, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -217,6 +262,11 @@ jobs:
         with:
           name: signed-windows
           path: assets
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: macos-*
+          merge-multiple: true
+          path: assets
       # Only the expected assets can ever be attached: an unexpected file in any artifact fails the run instead of shipping.
       - name: Allowlist the asset set
         working-directory: assets
@@ -227,6 +277,8 @@ jobs:
           minute2win-$V-bootfiles.zip
           minute2win-server-$V-linux-amd64.tar.gz
           minute2win-server-$V-linux-arm64.tar.gz
+          minute2win-server-$V-darwin-amd64.tar.gz
+          minute2win-server-$V-darwin-arm64.tar.gz
           minute2win-server-$V-x86_64.AppImage
           minute2win-server-$V-windows-x64.zip"
           expected="$(printf '%s\n' "${expected//  /}" | sort)"
