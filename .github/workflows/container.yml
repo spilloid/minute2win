@@ -57,8 +57,9 @@ jobs:
             --cap-drop ALL --cap-add NET_BIND_SERVICE \
             --security-opt no-new-privileges \
             --sysctl net.ipv4.ip_unprivileged_port_start=1024 \
+            -e M2W_TOKEN=isolated-bind-regression \
             --tmpfs /data:uid=65532,gid=65532,mode=0700 "$IMAGE" \
-            -listen=127.0.0.1:8080 -data=/data -open=false -pxe \
+            -listen=:8080 -data=/data -open=false -pxe \
             -pxe-dir=/manifests -pxe-file-x64=win11-pro.json \
             -pxe-file-bios= -pxe-file-arm64= \
             -pxe-dhcp-port=0 -pxe-proxy-port=0
