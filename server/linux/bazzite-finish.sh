@@ -24,15 +24,25 @@ chmod 440 /etc/sudoers.d/90-minute2win
 printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n' > /etc/ssh/sshd_config.d/00-minute2win.conf
 chmod 644 /etc/ssh/sshd_config.d/00-minute2win.conf
 systemctl enable sshd.service
+systemctl set-default graphical.target
 if command -v firewall-offline-cmd >/dev/null 2>&1; then
     firewall-offline-cmd --add-service=ssh
 fi
 
 if [ "$M2W_DESKTOP_AUTOLOGIN" = true ]; then
     [ -f /usr/share/wayland-sessions/plasma.desktop ]
-    mkdir -p /etc/sddm.conf.d
-    printf '[Autologin]\nUser=%s\nSession=plasma.desktop\nRelogin=false\n' "$M2W_USERNAME" > /etc/sddm.conf.d/90-minute2win.conf
-    chmod 644 /etc/sddm.conf.d/90-minute2win.conf
+    if [ -f /usr/lib/systemd/system/plasmalogin.service ]; then
+        login_dir=/etc/plasmalogin.conf.d
+    elif [ -f /usr/lib/systemd/system/sddm.service ]; then
+        login_dir=/etc/sddm.conf.d
+    else
+        echo 'minute2win: no supported KDE display manager installed' >&2
+        exit 1
+    fi
+    mkdir -p "$login_dir"
+    printf '[Autologin]\nUser=%s\nSession=plasma.desktop\nRelogin=false\n' "$M2W_USERNAME" > "$login_dir/90-minute2win.conf"
+    chmod 644 "$login_dir/90-minute2win.conf"
+    restorecon -RF "$login_dir"
 fi
 
 mkdir -p /var/usrlocal/sbin "$M2W_STATE"

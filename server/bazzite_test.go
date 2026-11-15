@@ -33,7 +33,7 @@ func TestBazziteNativeBootAndGuardedKickstart(t *testing.T) {
 	if code, seed := f.do(t, "GET", base+"kickstart.ks", "", ""); code != 200 {
 		t.Fatalf("kickstart: %d %s", code, seed)
 	} else {
-		for _, want := range []string{"%pre --interpreter=/bin/sh --erroronfail", "%post --interpreter=/bin/sh --erroronfail", "%include /tmp/minute2win-disk.ks", "sh /tmp/minute2win-guard", "[ -b \"$selected\" ]", "ignoredisk --only-use=%s", "clearpart --all --initlabel --drives=%s", "ostreecontainer --url=" + p.ContainerImage, "%onerror", "rootpw --lock"} {
+		for _, want := range []string{"%pre --interpreter=/bin/sh --erroronfail", "%post --interpreter=/bin/sh --erroronfail", "%include /tmp/minute2win-disk.ks", "sh /tmp/minute2win-guard", "[ -b \"$selected\" ]", "ignoredisk --only-use=%s", "clearpart --all --initlabel --drives=%s", "ostreecontainer --url=" + p.ContainerImage, "%onerror", "rootpw --lock", "xconfig --startxonboot"} {
 			if !strings.Contains(seed, want) {
 				t.Fatalf("missing %q in %s", want, seed)
 			}

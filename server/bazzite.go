@@ -14,6 +14,7 @@ timezone UTC --utc
 network --bootproto=dhcp --device=link --activate --hostname=@@HOST@@
 rootpw --lock
 firstboot --disable
+xconfig --startxonboot
 services --enabled=sshd
 ostreecontainer --url=@@IMAGE@@ --transport=registry --no-signature-verification
 reboot
