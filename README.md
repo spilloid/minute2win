@@ -2,7 +2,7 @@
 
 **Arm a machine. Network boot it. Install Windows.**
 
-The source also includes **experimental Debian, Ubuntu Server, Proxmox-through-Debian and Bazzite AMD/Intel KDE profiles**. They use the same arm-and-reboot workflow with distro-native installers. See the [Linux setup guide](docs/LINUX.md). Linux has automated server and disk-policy tests, but no recorded end-to-end VM deployment yet.
+The source also includes **experimental Debian, Ubuntu Server, Proxmox-through-Debian and Bazzite AMD/Intel KDE profiles**. They use the same arm-and-reboot workflow with distro-native installers. See the [Linux setup guide](docs/LINUX.md). Linux has automated server and disk-policy tests; the [Bazzite VM validation record](docs/validation/2026-11-14-bazzite.md) separates native install/boot evidence from remaining hardware limits.
 
 You type a machine's MAC address into a web page and pick a Windows profile. The next time that machine network boots, it wipes its disk, installs a fresh, verified copy of Windows and reboots into it. You can watch each phase tick by on a live board. Want it brand new again later? Arm it and reboot. That's the whole loop.
 

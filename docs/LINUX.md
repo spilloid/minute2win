@@ -6,7 +6,7 @@ title: Linux network installation
 
 The source tree adds experimental Debian, Ubuntu Server, Debian-based Proxmox and Bazzite profiles. They use the same console, MAC arming, proxyDHCP/TFTP and one-time iPXE ticket as Windows. Linux does not require WinPE, the ADK, wimboot or a Windows image host.
 
-**Verification limit:** server tests and simulated disk-policy tests are available; no Linux installer has completed a VM or physical-machine deployment in this project's verification record. Start with a disposable x86_64 VM, Secure Boot disabled, an empty internal disk and a DHCP-enabled NIC. The native Proxmox ISO installer, ZFS/RAID layouts, disk encryption, ARM and Secure Boot are outside this implementation. The existing Windows VM evidence does not validate Linux.
+**Verification limit:** server tests and simulated disk-policy tests are available. Bazzite has completed a native UEFI VM unattended install, automatic Plasma login, key-based SSH and an unarmed reboot; [its validation record](validation/2026-11-14-bazzite.md) gives exact assets and limits. Other installers retain their prior verification limits. Start with a disposable x86_64 VM, Secure Boot disabled, an empty internal disk and a DHCP-enabled NIC. The native Proxmox ISO installer, ZFS/RAID layouts, disk encryption, ARM and Secure Boot are outside this implementation. The existing Windows VM evidence does not validate Linux.
 
 Arming authorizes erasing one eligible disk, without another prompt. Debian and Ubuntu perform a fresh installation using their own installer; these are not persistent diskless desktops or arbitrary ISO chainloading.
 
@@ -102,9 +102,11 @@ This profile uses Fedora 45 Anaconda's native `ostreecontainer` payload to insta
 3. Copy `manifests/examples/bazzite.json` into your profiles directory. Set the three asset hashes, digest and your public SSH key. Use a disposable UEFI VM with Secure Boot disabled, 8 GiB RAM and an empty 80 GiB internal disk for initial testing. These are test settings, not measured minimum requirements.
 4. Arm and network boot as usual. Anaconda downloads its runtime through a capability-gated `.treeinfo`, partitions only the guarded disk with its Btrfs default layout, installs the pinned container and reboots. The post-install hook configures signed stable updates using the same `bootc switch --mutate-in-place --enforce-container-sigpolicy` operation as the [upstream Bazzite installer](https://github.com/ublue-os/bazzite/blob/main/installer/titanoboa_hook_postrootfs.sh).
 
-With `desktopAutologin: true`, KDE opens automatically as `m2w` (or your configured username). Passwords remain locked and the account has passwordless sudo. Set a personal password over SSH with `sudo passwd m2w` if you want console authentication or to disable automatic desktop login. There is no shared starter password. Keep other disks disconnected when reimaging a gaming PC.
+With `desktopAutologin: true`, KDE opens automatically as `m2w` (or your configured username). Passwords remain locked and the account has passwordless sudo. Open Konsole on the first desktop boot and run `sudo passwd m2w` to choose your personal password before locking the screen. The same command works over key-authenticated SSH. There is no shared starter password. Keep other disks disconnected when reimaging a gaming PC.
 
-Installer failures are reported best effort. Inspect `/tmp/minute2win-pre.log`, Anaconda's `/tmp/*log` files and the installed system's `/root/minute2win-install.log` when diagnosing a failed install. The physical machine remains unarmed until you explicitly arm its MAC.
+Bazzite 45 uses Plasma Login Manager; older compatible images may use SDDM. The setup hook detects the installed manager and enables the graphical boot target, including when automatic login is disabled.
+
+Installer failures are reported best effort. Inspect `/tmp/minute2win-pre.log`, Anaconda's `/tmp/*log` files and the installed system's `/root/minute2win-install.log` when diagnosing a failed install. The physical machine remains unarmed until you explicitly arm its MAC. A registry/TLS failure can occur after partitioning; the failed arm stays consumed. Fix connectivity and re-arm to retry.
 
 ## Proxmox through Debian
 

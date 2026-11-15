@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "deployment": {
+    "mac": "52:54:00:ba:22:01",
+    "manifest": "bazzite-test",
+    "installer": "bazzite",
+    "bootedAt": "2026-11-15T00:19:01.95510421Z",
+    "updatedAt": "2026-11-15T00:45:51.507449566Z",
+    "phase": "complete",
+    "status": "done",
+    "message": "Installed OS booted and first-boot setup completed"
+  },
+  "beforeBootID": "7d758a6c-36c2-4fb2-b122-15390d2f0ec3",
+  "afterBootID": "a34a10b0-7681-43b8-9137-4e367fd038bc",
+  "checks": [
+    "native unattended blank-disk installation",
+    "automatic installed-system first-boot report",
+    "SSH public-key login",
+    "passwordless sudo",
+    "SELinux enforcing",
+    "pinned Bazzite image",
+    "signed stable update policy",
+    "graphical boot target",
+    "Plasma automatic login",
+    "unarmed installed-disk reboot",
+    "Plasma automatic login after reboot"
+  ]
+}
