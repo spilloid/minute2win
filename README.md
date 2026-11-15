@@ -1,5 +1,7 @@
 # minute2win
 
+Linux container hosting: [container setup and networking](docs/CONTAINER.md).
+
 **Arm a machine. Network boot it. Install Windows.**
 
 The source also includes **experimental Debian, Ubuntu Server, Proxmox-through-Debian and Bazzite AMD/Intel KDE profiles**. They use the same arm-and-reboot workflow with distro-native installers. See the [Linux setup guide](docs/LINUX.md). Linux has automated server and disk-policy tests; the [Bazzite VM validation record](docs/validation/2026-11-14-bazzite.md) separates native install/boot evidence from remaining hardware limits.

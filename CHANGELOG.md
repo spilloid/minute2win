@@ -2,6 +2,8 @@
 
 ## [0.5.0] - Unreleased
 
+- Package the headless server in a non-root Linux container. Build source-SHA images with current stable Go in Actions; keep operator credentials, profiles, assets and state outside the image. Document host networking for TFTP and single-writer persistent deployments.
+
 - Add experimental Bazzite AMD/Intel KDE network installation through Fedora 45 Anaconda and a digest-pinned official OCI image. Reuse the existing profile selector, one-use boot ticket, disk guard, countdown and first-boot board reports.
 - Gate and hash-check the Fedora installer runtime alongside the kernel and initrd. Reject mutable or unsupported Bazzite images before arming, and provide capability-gated installation-tree metadata for native Anaconda boot.
 - Configure SSH-key-only administration, optional KDE automatic login and signed stable updates on the installed immutable system. Add an example profile and setup documentation. Native VM evidence and verification limits are recorded separately.

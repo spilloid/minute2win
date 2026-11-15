@@ -1,0 +1,9 @@
+**
+!Dockerfile
+!server/
+!server/**
+!manifests/
+!manifests/**
+server/server
+server/server.exe
+server/*.test
