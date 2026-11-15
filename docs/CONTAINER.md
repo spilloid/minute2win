@@ -25,6 +25,13 @@ Keep the web console on the trusted deployment LAN; do not publish boot capabili
 or the operator token through a public ingress. See the [server reference](SERVER.md)
 and [Linux profiles](LINUX.md).
 
+The amd64 executable carries only the NET_BIND_SERVICE file capability so a
+runtime can retain that declared capability across non-root exec. Keep it in the
+container capability bounding/permitted sets; no other capability is required.
+CI tests UDP 69 with UID 65532, a read-only root, no-new-privileges, all other
+capabilities dropped and the usual privileged-port threshold restored inside the
+test container's own network namespace. The host sysctl is not changed.
+
 If the router already supplies per-target boot rules, keep proxyDHCP on unused
 ephemeral ports with -pxe-dhcp-port=0 and -pxe-proxy-port=0, while retaining TFTP 69.
 Set unsupported architecture filenames empty. Never run a second installer host
