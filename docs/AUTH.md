@@ -32,6 +32,9 @@ MCP calls. State and profile listings are filtered to the caller's image scope.
 Once accounts, native OIDC or proxy SSO are configured, deployment details require
 authentication. `/healthz` is a credential-free, detail-free health check.
 
+An operator can replace a pending arm only when both the existing and new
+images are within their scope. Expired arms no longer reserve a MAC.
+
 ## Local accounts and personal tokens
 
 Start with `-auth-file <protected-path>/accounts.json`. With MCP and persistent

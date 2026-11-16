@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func (f *fixture) createAccountToken(t *testing.T, user, role string, profiles []string) string {
@@ -191,4 +192,42 @@ func TestAccountFailureDoesNotChangeMemoryOrExposeHashes(t *testing.T) {
 	if strings.Contains(string(b), "password_hash") || strings.Contains(string(b), "token_hashes") {
 		t.Fatal("credential hashes exposed")
 	}
+}
+
+func TestScopedOperatorCannotReplaceAnotherImagesPendingArm(t *testing.T) {
+	f := newMCPFixture(t)
+	operator := f.createAccountToken(t, "limited-imager", "operator", []string{"win11-pro"})
+	if err := os.WriteFile(filepath.Join(f.s.ManifestDir, "other.json"), []byte(testProfile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for i, interfaceName := range []string{"API", "UI", "MCP"} {
+		mac := []string{"52:54:00:00:00:a1", "52:54:00:00:00:a2", "52:54:00:00:00:a3"}[i]
+		requireToolOK(t, f.adminTool(t, "machine_arm", map[string]any{"mac": mac, "manifest": "other"}))
+		original := f.s.st.Armed[mac]
+		switch interfaceName {
+		case "API":
+			if code, _ := f.do(t, "POST", "/api/armed", string(mustJSON(t, map[string]any{"mac": mac, "manifest": "win11-pro"})), operator); code != 403 {
+				t.Fatalf("API replaced out-of-scope arm: HTTP %d", code)
+			}
+		case "UI":
+			code, body := f.req(t, "POST", "/ui/arm", url.Values{"mac": {mac}, "manifest": {"win11-pro"}}.Encode(), "", map[string]string{"Authorization": "Bearer " + operator, "Content-Type": "application/x-www-form-urlencoded"})
+			if code != 200 || !strings.Contains(body, "outside your image scope") {
+				t.Fatalf("UI replacement was not refused: %d %s", code, body)
+			}
+		case "MCP":
+			requireToolCode(t, f.callTool(t, operator, "machine_arm", map[string]any{"mac": mac, "manifest": "win11-pro"}), "forbidden")
+		}
+		current := f.s.st.Armed[mac]
+		if current == nil || current.Manifest != "other" || current.Ticket != original.Ticket {
+			t.Fatalf("%s changed the original arm/ticket", interfaceName)
+		}
+	}
+	// Administrators and same-scope operators can still deliberately replace
+	// an arm. An expired outside-scope arm no longer reserves the MAC.
+	requireToolOK(t, f.adminTool(t, "machine_arm", map[string]any{"mac": "52:54:00:00:00:a1", "manifest": "win11-pro"}))
+	requireToolOK(t, f.callTool(t, operator, "machine_arm", map[string]any{"mac": "52:54:00:00:00:a1", "manifest": "win11-pro"}))
+	f.s.mu.Lock()
+	f.s.st.Armed["52:54:00:00:00:a2"].Expires = f.now.Add(-time.Second)
+	f.s.mu.Unlock()
+	requireToolOK(t, f.callTool(t, operator, "machine_arm", map[string]any{"mac": "52:54:00:00:00:a2", "manifest": "win11-pro"}))
 }

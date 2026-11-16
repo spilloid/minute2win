@@ -245,7 +245,7 @@ func (s *Server) callMCPTool(ctx context.Context, name string, a map[string]json
 		if !nameRe.MatchString(requestID) {
 			return toolError("invalid_request_id", "request_id must be 1 to 64 letters, digits, dots, dashes or underscores.", "Create a unique operation ID and keep it for every retry.", false)
 		}
-		armed, replayed, err := s.doArmRequest(argString(a, "mac"), image, p.Username, requestID)
+		armed, replayed, err := s.doArmRequest(argString(a, "mac"), image, p, requestID)
 		if err != nil {
 			return deploymentToolError(err)
 		}

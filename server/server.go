@@ -412,7 +412,11 @@ func (s *Server) arm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "profile is outside your image scope", http.StatusForbidden)
 		return
 	}
-	a, err := s.doArm(req.MAC, req.Manifest)
+	a, _, err := s.doArmRequest(req.MAC, req.Manifest, p, "")
+	if err == errImageScope {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	if err == saveFail || err == degradedErr {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -442,15 +446,16 @@ func (s *Server) disarm(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// doArm and doDisarm are shared by the JSON API and the web UI, so both follow the same rules.
+// doArm is a privileged internal convenience for local callers/tests. Control
+// interfaces must pass the caller's principal to doArmRequest.
 func (s *Server) doArm(rawMAC, manifest string) (*Armed, error) {
-	a, _, err := s.doArmRequest(rawMAC, manifest, "", "")
+	a, _, err := s.doArmRequest(rawMAC, manifest, principal{Role: "admin"}, "")
 	return a, err
 }
 
 // doArmRequest records an MCP idempotency receipt in the SAME commit as the arm.
 // A retry after boot, disarm or restart returns the receipt and cannot re-arm.
-func (s *Server) doArmRequest(rawMAC, manifest, actor, requestID string) (*Armed, bool, error) {
+func (s *Server) doArmRequest(rawMAC, manifest string, actor principal, requestID string) (*Armed, bool, error) {
 	mac, ok := normMAC(rawMAC)
 	if !ok {
 		return nil, false, errBadMAC
@@ -458,9 +463,12 @@ func (s *Server) doArmRequest(rawMAC, manifest, actor, requestID string) (*Armed
 	if !nameRe.MatchString(manifest) {
 		return nil, false, errBadManifest
 	}
+	if !actor.canOperate() || !actor.allows(manifest) {
+		return nil, false, errImageScope
+	}
 	requestKey := ""
 	if requestID != "" {
-		requestKey = hashBytes([]byte(actor + "\x00" + requestID))
+		requestKey = hashBytes([]byte(actor.Username + "\x00" + requestID))
 		s.mu.Lock()
 		receipt := s.st.Requests[requestKey]
 		s.mu.Unlock()
@@ -491,6 +499,11 @@ func (s *Server) doArmRequest(rawMAC, manifest, actor, requestID string) (*Armed
 	if s.degraded {
 		return nil, false, degradedErr
 	}
+	s.expire()
+	prev := s.st.Armed[mac]
+	if prev != nil && !actor.allows(prev.Manifest) {
+		return nil, false, errImageScope
+	}
 	if requestKey != "" {
 		if s.st.Requests == nil {
 			s.st.Requests = map[string]*armReceipt{}
@@ -509,7 +522,6 @@ func (s *Server) doArmRequest(rawMAC, manifest, actor, requestID string) (*Armed
 		}
 		s.st.Requests[requestKey] = &armReceipt{RunID: a.RunID, MAC: mac, Manifest: manifest, ArmedAt: a.ArmedAt, Expires: a.Expires}
 	}
-	prev := s.st.Armed[mac]
 	s.st.Armed[mac] = a
 	if err := s.commit(func() {
 		if requestKey != "" {

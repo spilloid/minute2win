@@ -130,7 +130,7 @@ func (s *Server) uiArm(w http.ResponseWriter, r *http.Request) {
 		render(w, "msg", &msg{"err", "Not armed: profile is outside your image scope."})
 		return
 	}
-	a, err := s.doArm(r.PostFormValue("mac"), r.PostFormValue("manifest"))
+	a, _, err := s.doArmRequest(r.PostFormValue("mac"), r.PostFormValue("manifest"), p, "")
 	if err != nil {
 		render(w, "msg", &msg{"err", "Not armed: " + err.Error()})
 		return
