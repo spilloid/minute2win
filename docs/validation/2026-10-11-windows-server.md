@@ -1,3 +1,7 @@
+---
+title: "Windows server validation \u2014 2026-10-11"
+---
+
 # Windows server validation — 2026-10-11
 
 Tested from an isolated lab source copy on a Windows 11 QEMU/Q35 guest, using Go 1.27.1 windows/amd64. No existing OS disk was reimaged.
