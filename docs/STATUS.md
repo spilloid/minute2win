@@ -14,6 +14,13 @@ The [2026-11-13 Linux server validation record](validation/2026-11-13-linux-serv
 
 **Desktop companion:** native status icons are included for Windows, macOS and Linux. The host still runs separately. See [Desktop status icon](DESKTOP.md) for setup, signing and graphical validation limits.
 
+**0.6.0 publication checks:** CI, packaged Linux/macOS smoke checks, Windows
+signatures/timestamps and all eight asset hashes passed. Anonymous release,
+download and guide checks also passed. These package/control checks do not
+establish live IdP or new target-install coverage. The
+[dated publication record](validation/2026-11-15-mcp-auth.md)
+identifies the exact source and workflow runs.
+
 ## How this record is maintained
 
 This page separates verified behavior, untested paths and unsupported features.
@@ -34,7 +41,7 @@ media-job, persistence and signed mock-OIDC checks pass, including race checks.
 Real MCP SDK clients connected over HTTP and stdio; browser tests exercised
 one-login repeated arming, viewer restrictions, logout and phone/desktop layouts.
 The Authentik and inactive Homelab rollout manifests render and pass static
-policy checks. These are source/control checks: this candidate has not been
+policy checks. These are source/control checks: this release has not been
 deployed to the live host or real Authentik tenant, and no new target install
 was performed. See the [validation record](validation/2026-11-15-mcp-auth.md).
 
