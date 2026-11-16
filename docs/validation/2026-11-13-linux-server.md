@@ -1,3 +1,7 @@
+---
+title: "Experimental Linux installer checks, 2026-11-13"
+---
+
 # Experimental Linux installer checks, 2026-11-13
 
 Environment: Windows amd64, Go 1.27.0, Windows PowerShell and Git for Windows Bash. Go cache and temporary test files were placed in the writable workspace. No Linux installer image was booted and no disk was imaged during this work.
