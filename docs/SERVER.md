@@ -18,8 +18,7 @@ it works offline. `/api/*` stays as JSON for scripts.
   boots expire (`-arm-ttl`, default 2h), and **arms do not survive a restart of the server**: re-arm what you still want.
 - The server serves the armed manifest with `report.url` set to itself. The engine then posts every phase and lap time, and the
   **Deployments** board shows a live stopwatch against the 60-second target.
-- **Who needs the token.** `M2W_TOKEN=...` gates arming and disarming (the API's `Authorization: Bearer`, the console's token
-  field). The machines being imaged never use it: iPXE's `GET /boot/{mac}` and `GET /manifest/{mac}` and the engine's
+- **Sign in once.** The console uses a local/SSO session. `server-admin` with `M2W_TOKEN` is the bootstrap login; scoped personal bearer tokens work for API/MCP. Roles and allowed images are enforced across all control paths. See [Accounts and SSO](AUTH.md). The machines being imaged never use the operator credential: iPXE's `GET /boot/{mac}` and `GET /manifest/{mac}` and the engine's
   `POST /api/report` (authenticated by a per-deployment report key) work the same with or without a token.
 - **Loopback by default; the network needs a token.** The server listens on `127.0.0.1:8080` unless you pass `-listen`. That is
   enough to look at the console, but machines being imaged cannot reach it. On any address other machines can reach (`:8080`,
@@ -75,6 +74,26 @@ runs the `chain .../boot/${net0/mac}` line above.
 defaulted `-image-base` to the maintainer's restricted host and did not check where a request came from. With those builds, pass
 `-listen` and `-image-base` explicitly and always set `M2W_TOKEN`, even on loopback: without a token, any web page open in the
 operator's browser could arm a machine.
+
+## MCP and account options
+
+See [MCP control](MCP.md) for the workflow, tool schemas and stdio setup, and
+[Accounts and SSO](AUTH.md) for OIDC environment variables and role mapping.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| -mcp | off | Enable bearer-authenticated management at /mcp; M2W_TOKEN is required |
+| -mcp-stdio | off | Bridge stdio to a running host; does not start another writer |
+| -mcp-url | http://127.0.0.1:8080/mcp | Endpoint for the bridge; remote URLs need HTTPS |
+| -mcp-media-dir | <data>/media | Approved writable media root |
+| -mcp-import-dir | unset | Optional approved read-only import source root |
+| -auth-file | <data>/accounts.json with MCP | Protected account store; parent must be writable |
+| -auth-proxy-user-header | unset | Optional trusted proxy identity header; requires M2W_PROXY_SECRET |
+
+MCP image-base/Linux-root/TTL changes persist in <data>/mcp-settings.json unless
+state is memory-only. Explicit startup flags override saved values. PXE start/stop
+is process-local. Use /healthz for readiness, /api/status for anonymous counts
+and authenticated /api/state for target details when accounts/SSO are enabled.
 
 ## Built-in PXE (optional, `-pxe`)
 

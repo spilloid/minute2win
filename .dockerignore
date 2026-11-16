@@ -4,6 +4,11 @@
 !server/**
 !manifests/
 !manifests/**
+!licenses/
+!licenses/**
+!LICENSE
+!THIRD_PARTY_NOTICES.md
 server/server
 server/server.exe
 server/*.test
+server/.gocache/

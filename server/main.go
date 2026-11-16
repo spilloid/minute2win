@@ -236,10 +236,45 @@ func main() {
 	pxeDHCP := flag.Int("pxe-dhcp-port", 67, "with -pxe: proxyDHCP broadcast port")
 	pxeProxy := flag.Int("pxe-proxy-port", 4011, "with -pxe: proxyDHCP request port")
 	pxeTFTP := flag.Int("pxe-tftp-port", 69, "with -pxe: TFTP port")
+	mcp := flag.Bool("mcp", false, "enable token-authenticated MCP management at /mcp")
+	mcpStdio := flag.Bool("mcp-stdio", false, "bridge MCP stdio to an existing server; does not start another host")
+	mcpURL := flag.String("mcp-url", "http://127.0.0.1:8080/mcp", "with -mcp-stdio: existing MCP endpoint")
+	mcpMedia := flag.String("mcp-media-dir", "", "with -mcp: approved writable media root (default: <data>/media)")
+	mcpImport := flag.String("mcp-import-dir", "", "with -mcp: optional approved read-only import root")
+	authFile := flag.String("auth-file", "", "local/SSO accounts file; with -mcp defaults to <data>/accounts.json")
+	proxyUser := flag.String("auth-proxy-user-header", "", "SSO identity header from an authenticated reverse proxy; requires M2W_PROXY_SECRET")
 	flag.Parse()
+	if *mcpStdio {
+		mcpStdioMain(*mcpURL)
+		return
+	}
 	*manifests = findManifests(*manifests)
+	settingsPath := ""
+	if *mcp && *data != "" {
+		settingsPath = filepath.Join(*data, "mcp-settings.json")
+		saved, err := readMCPSettings(settingsPath)
+		if err != nil {
+			log.Fatalf("load MCP settings: %v", err)
+		}
+		if saved != nil {
+			explicit := map[string]bool{}
+			flag.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+			if !explicit["image-base"] {
+				*base = saved.ImageBase
+			}
+			if !explicit["linux-assets"] {
+				*linuxAssets = saved.LinuxAssets
+			}
+			if !explicit["arm-ttl"] {
+				*ttl = time.Duration(saved.ArmTTLSeconds) * time.Second
+			}
+		}
+	}
 
 	token := os.Getenv("M2W_TOKEN")
+	if *mcp && token == "" {
+		log.Fatal("-mcp requires M2W_TOKEN, even on loopback")
+	}
 	ln, warning, err := openListener(*listen, token, *insecure, net.Listen)
 	if err != nil {
 		log.Fatal(err)
@@ -264,6 +299,57 @@ func main() {
 	}
 	if err := s.Load(); err != nil {
 		log.Fatal(err)
+	}
+	if *authFile == "" && *mcp && *data != "" {
+		*authFile = filepath.Join(*data, "accounts.json")
+	}
+	s.Auth = newAuthStore(*authFile)
+	oidcAuth, err := oidcFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if oidcAuth != nil && token == "" {
+		log.Fatal("OIDC requires M2W_TOKEN for bootstrap administration")
+	}
+	s.Auth.OIDC = oidcAuth
+	if *proxyUser != "" {
+		secret := os.Getenv("M2W_PROXY_SECRET")
+		if len(secret) < 32 || token == "" {
+			log.Fatal("SSO proxy authentication requires M2W_TOKEN and M2W_PROXY_SECRET of at least 32 bytes")
+		}
+		if !validProxyHeader(*proxyUser) {
+			log.Fatal("-auth-proxy-user-header must be a dedicated X- identity header")
+		}
+		s.Auth.ProxyHeader, s.Auth.ProxySecret = *proxyUser, secret
+	}
+	if err := s.Auth.load(); err != nil {
+		log.Fatal(err)
+	}
+	if *mcp {
+		if err := os.MkdirAll(s.ManifestDir, 0o700); err != nil {
+			log.Fatal(err)
+		}
+		if *mcpMedia == "" {
+			if *data == "" {
+				log.Fatal("-mcp with memory-only state requires explicit -mcp-media-dir")
+			}
+			*mcpMedia = filepath.Join(*data, "media")
+		}
+		if err := os.MkdirAll(*mcpMedia, 0o700); err != nil {
+			log.Fatal(err)
+		}
+		managedPXE := *pxeDir
+		if managedPXE == "" {
+			managedPXE = filepath.Join(*mcpMedia, "pxe")
+			if err := os.MkdirAll(managedPXE, 0o700); err != nil {
+				log.Fatal(err)
+			}
+		}
+		if err := os.MkdirAll(managedPXE, 0o700); err != nil {
+			log.Fatal(err)
+		}
+		s.MCP = &mcpControl{SettingsPath: settingsPath, MediaDir: *mcpMedia, ImportDir: *mcpImport, Bound: ln.Addr(), PXEDir: managedPXE}
+		log.Print("MCP management enabled at /mcp; server token is administrator; use account tokens for scoped operators")
 	}
 	images := *base
 	if images == "" {
@@ -292,8 +378,12 @@ func main() {
 		if warning != "" {
 			log.Print(warning)
 		}
-		if _, err := s.StartPXE(cfg); err != nil {
+		p, err := s.StartPXE(cfg)
+		if err != nil {
 			log.Fatal(err)
+		}
+		if s.MCP != nil {
+			s.MCP.PXE = p
 		}
 	}
 	for _, u := range lanURLs(ln.Addr()) {

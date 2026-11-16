@@ -17,3 +17,27 @@ The server listens on loopback by default and refuses to listen on a network-rea
 The SHA-256 verifies image bytes against the manifest; it does not authenticate a maliciously replaced manifest or loader. Protect the whole boot chain. A deployment report key may be retrieved by another LAN host during delivery, allowing forged board status; confirm outcomes from the installed system and logs. See [Status](docs/STATUS.md) for accepted limitations.
 
 For public repositories, maintainers must protect release tag creation, updates and deletion before relying on signing. See [Releasing](docs/RELEASING.md).
+
+## MCP, sessions and SSO (source 0.6.0)
+
+MCP is opt-in and requires explicit bearer authentication, including on loopback.
+Personal tokens inherit viewer/operator/admin roles and exact profile scopes;
+M2W_TOKEN remains a bootstrap administrator credential. Native OIDC validates
+state, PKCE, nonce, issuer, audience, signature and expiry through maintained
+OIDC/JWT libraries. Browser sessions cannot authenticate an MCP request.
+Account policy changes revoke account tokens and mapped sessions. OIDC group
+changes are reflected on a subsequent login, within a one-hour session lifetime.
+Use HTTPS for remote credentials and protect account/state/settings files.
+
+Media tools are administrator-only and confined to approved roots; HTTPS
+downloads are pinned, size/time bounded and never overwrite existing media.
+They are not arbitrary filesystem or shell access. Profile edits and host
+configuration are blocked while affected installations are active. MCP arming
+request receipts are saved with the arm so a timeout retry cannot schedule a
+second wipe. Tracking recovery requires an administrator to independently stop
+the target; it records outcome unknown and cannot cancel an installer itself.
+
+Once accounts/SSO are configured, target details require authentication. Public
+/api/status contains counts only; /healthz contains no deployment detail. Boot
+and installer/report endpoints retain their existing target capabilities and
+must not be exposed through an interactive browser-auth wall.

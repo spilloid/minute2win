@@ -19,6 +19,22 @@ Before changing repository visibility:
 
 Tag protection matters because a pushed tag selects the release workflow itself. The workflow also requires the tagged commit to be on main and pins that SHA before signing; those checks complement repository rules rather than replace them.
 
+## Normal releases and verification notes
+
+Publish public-trial versions as normal releases and mark them Latest. Do not
+use GitHub's pre-release flag solely because manual hardware, Secure Boot or
+identity-provider coverage is incomplete. Keep passing CI, signing, timestamp,
+checksum and artifact checks as publication requirements, and resolve known
+blocking defects before release.
+
+Release notes must say which checks ran, which prior evidence is reused, which
+paths remain untested and which features are unsupported. Link to STATUS.md and
+dated validation records. As testing expands, append dated results for the
+unchanged release artifacts and update the status summary/release notes without
+implying those results existed at publication. Preserve original test records.
+Code or artifact fixes require a new patch version; do not replace published
+binaries in place.
+
 ## Release checklist
 
 1. Merge changes through a PR. CI must pass. Independently review non-trivial behavior/signing changes and record findings in `docs/dev-process.md`.

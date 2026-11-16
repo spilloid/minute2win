@@ -8,10 +8,12 @@ The console and JSON API share one server. This reference describes the current 
 
 | Method and path | Purpose | Authorization |
 | --- | --- | --- |
-| GET /api/manifests | List available profile names | None |
-| GET /api/state | Arms, deployments, server time, tokenRequired and degraded | None; report keys are omitted |
-| POST /api/armed | Arm a MAC with a profile | Bearer M2W_TOKEN when configured; `Content-Type: application/json` |
-| DELETE /api/armed/{mac} | Remove an unused arm | Bearer M2W_TOKEN when configured |
+| GET /api/manifests | List permitted profile names | Authenticated when accounts/SSO are configured |
+| GET /api/state | Permitted arms/deployments, time, tokenRequired and degraded | Authenticated when accounts/SSO are configured; report keys omitted |
+| GET /api/status | Armed/deploying counts and degraded only | None; no target details |
+| GET /healthz | Detail-free health check; 503 when degraded | None |
+| POST /api/armed | Arm a MAC with a permitted profile | Operator/admin session or bearer token; `Content-Type: application/json` |
+| DELETE /api/armed/{mac} | Remove a permitted unused arm | Operator/admin session or bearer token |
 | GET /boot/{mac} | iPXE script; for an armed MAC it chains `/boot/{mac}/{ticket}`. Changes nothing | None |
 | GET /boot/{mac}/{ticket} | The deployment boot script; consumes the arm | The arm's one-time ticket (only in the response above); no operator token |
 | GET /manifest/{mac} | Manifest for a booting deployment | Short-lived boot delivery window |
@@ -19,6 +21,12 @@ The console and JSON API share one server. This reference describes the current 
 | POST /api/report | Engine phase/timing report | Deployment report key; `Content-Type: application/json` |
 
 ## Request rules
+
+[Accounts and SSO](AUTH.md) describes session login and personal bearer tokens.
+The server token retains bootstrap administrator rights. JSON API arms preserve
+their existing replace-by-MAC behavior; use [MCP](MCP.md) with `request_id` for
+persistent retry receipts and `run_id` monitoring. `/mcp` is opt-in with `-mcp`
+and always requires an explicit bearer credential.
 
 - **Cross-origin browser requests are refused.** Every POST and DELETE above, and the console's own form routes (`/ui/arm`, `/ui/disarm`), answer 403 to a browser request from another origin (`Sec-Fetch-Site`, or an `Origin` that does not match `Host`). Requests without those headers, such as curl, scripts and the WinPE engine, are not affected. Those headers are often absent on a plain GET (an `<img>` over plain HTTP to a LAN address sends neither), which is why the GET that consumes an arm needs the one-time ticket from `GET /boot/{mac}`'s response, a response another site's page cannot read.
 - **JSON mutations need a JSON content type.** `POST /api/armed` and `POST /api/report` answer 415 unless `Content-Type` is `application/json` (parameters such as `charset` are fine).
@@ -28,7 +36,7 @@ The console and JSON API share one server. This reference describes the current 
 ## Read state
 
 ```bash
-curl --fail http://localhost:8080/api/state
+curl --fail -H "Authorization: Bearer $M2W_TOKEN" http://localhost:8080/api/state
 curl --fail http://localhost:8080/api/manifests
 ```
 

@@ -1,5 +1,18 @@
 # Third-party notices
 
+## Native OIDC authentication
+
+The server links `github.com/coreos/go-oidc/v3` v3.19.0 (Apache-2.0),
+`golang.org/x/oauth2` v0.36.0 (BSD-3-Clause) and its signature-validation
+dependency `github.com/go-jose/go-jose/v4` v4.1.4 (Apache-2.0).
+License and applicable notice texts ship in `licenses/`, including the container.
+These provide maintained OIDC and JWT validation. MCP transport and deployment
+control use the standard library.
+
+- https://github.com/coreos/go-oidc
+- https://go.googlesource.com/oauth2
+- https://github.com/go-jose/go-jose
+
 ## Native desktop companion
 
 `desktop/` links `fyne.io/systray` v1.12.2 (Apache-2.0),

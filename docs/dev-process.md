@@ -270,3 +270,13 @@ The corrected default-profile run completed imaging/reclaim and booted Windows 2
 - Independent adversarial review has not run. Keep the PR draft pending STD-001 review; no merge, release or tag was performed.
 
 - Final corrected candidate completed an unattended blank-disk UEFI install in 1,609.6 s. Verified the exact image, signed stable update policy, key-only administration, enforcing SELinux, actual Wayland Plasma automatic login and an unarmed OS reboot with a changed boot ID and automatic login again. All code CI jobs and documentation checks passed for the desktop fix. Published only synthetic VM captures/results; physical hardware and Secure Boot remain unverified.
+
+
+## 2026-11-15 - MCP control, accounts and Authentik integration
+
+- Requested: full LLM control and guided media setup, then one-login local/SSO authentication, role/image-scoped MCP arming and monitoring, plus HomeLab_ac/Authentik source updates.
+- Added an opt-in MCP HTTP endpoint and stdio bridge to the existing host, 28 tools, resources/prompts, confined bounded media jobs, profile/configuration management, PXE controls, durable idempotent arm receipts, stable run monitoring and explicit stopped-target tracking recovery. Target power/firmware and Windows ADK/build/hosting remain guided external operations.
+- Added local sessions/accounts, maintained OIDC/JWT validation libraries, optional trusted-proxy authentication, viewer/operator/admin image scopes and revocable personal tokens. Removed the per-device token field. The native companion uses anonymous counts with a legacy fallback.
+- HomeLab_ac has a native Authentik PKCE provider and an inactive rollout component. No live reconciliation, image publication or deployment was performed; production activation requires a tested new image pin. Existing wildcard tunnel routing applies.
+- Native server/companion vet and race checks, real MCP SDK HTTP/stdio, browser login/RBAC/legacy-console checks, source cross-builds, Kustomize/static policy checks and site-version checks pass. Signed mock OIDC verifies state/nonce/PKCE/signatures/claims; no real IdP login or target install is claimed. See validation/2026-11-15-mcp-auth.md for findings and limits.
+- Independent adversarial review has not run and remains pending before merge/release. No review waiver, commit, merge, tag or release was made in this task.

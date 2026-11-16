@@ -284,7 +284,7 @@ targets chain: http://192.168.1.50:8080/boot/${net0/mac}
 
 There may be one `targets chain` line per network adapter; the one with your server address is the one that matters.
 
-The console opens in your browser. Your profile is in the drop-down, and the token field is there because a token is set:
+The console opens in your browser. In source 0.6.0, sign in once as server-admin with your operator token; your profile then appears in the drop-down. The historical screenshot below shows the earlier per-device token field:
 
 ![The minute2win console: the arm form with a MAC address field, the lab-win11 profile selected, a token field and the Arm for wipe button; nothing armed and no deployments yet.](assets/screenshots/walkthrough-console.png)
 
@@ -309,7 +309,7 @@ Its MAC address is now `00:15:5d:00:2a:01`. Each VM needs its own MAC: change th
 
 ## 9. Arm it, boot it, watch it
 
-In the console, enter `00:15:5d:00:2a:01`, choose `lab-win11`, paste your token, and press **Arm for wipe**. The VM shows up under **Armed**, with the time its arm expires:
+In the console, enter `00:15:5d:00:2a:01`, choose `lab-win11` and press **Arm for wipe**. The VM shows up under **Armed**, with the time its arm expires:
 
 ![The console with one armed machine: MAC 00:15:5d:00:2a:01, profile lab-win11, an expiry time and a Disarm button.](assets/screenshots/walkthrough-armed.png)
 

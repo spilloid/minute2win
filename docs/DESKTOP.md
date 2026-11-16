@@ -38,7 +38,7 @@ open 'minute2win Tray.app' --args -url https://console.example.com
 
 The macOS bundle is **ad-hoc signed, not Apple Developer ID signed or notarized**. Gatekeeper may block a downloaded copy. Check the archive hash and use macOS's explicit Open Anyway action only if you trust it. Linux needs a graphical login with a StatusNotifier/AppIndicator provider; GNOME may need its AppIndicator extension. SSH sessions and headless hosts do not provide a tray.
 
-`-url` accepts an HTTP(S) origin with no credentials, path, query or fragment. It defaults to loopback. The companion never reads or sends `M2W_TOKEN`; enter your token in the console when needed. Omit `-host-root` for remote hosts: profile/log directories cannot be opened through the API, and those two menu entries are disabled without a local directory.
+`-url` accepts an HTTP(S) origin with no credentials, path, query or fragment. It defaults to loopback. The companion never reads or sends `M2W_TOKEN`; sign in once in the console when needed. Omit `-host-root` for remote hosts: profile/log directories cannot be opened through the API, and those two menu entries are disabled without a local directory.
 
 ## Read the status
 
@@ -61,3 +61,5 @@ For scripted setup, run the executable with the same arguments plus `-install-st
 **Open tray log** shows connection changes and errors. Logs are in `%LocalAppData%\minute2win\tray.log`, `~/Library/Caches/minute2win/tray.log`, or `${XDG_CACHE_HOME:-~/.cache}/minute2win/tray.log`.
 
 Native Windows menu interaction is checked on the maintainer's host. macOS/Linux builds and non-GUI status checks run in CI; graphical menu interaction and next-login startup still need live desktop validation. Companion checks do not verify target installation.
+
+The companion reads anonymous counts from /api/status on current hosts, with a /api/state fallback only when an older host returns 404. Counts expose no target MACs, profiles, messages or capabilities. Authenticated deployment details remain in the console.

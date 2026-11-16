@@ -4,7 +4,7 @@ title: Status and known issues
 
 # Status and known issues
 
-Current code version: **0.5.0 (unreleased)**. This is an early release for evaluation. The server and helpers have automated checks; a disposable x64 UEFI VM has completed imaging and booted the installed Windows disk. The default profile reached the normal country-selection OOBE screen after a long setup delay; logs confirm automatic first-boot bootstrap success. The optional local-account profile reached the desktop automatically with verified admin membership and main-answer-file deletion. Next-logon password-change behavior and complete cached-XML cleanup remain unverified. No measured result supports the one-minute goal yet.
+Current version: **0.6.0**, published as a normal release for public trials. Release status does not imply that every hardware or integration path has been tested. The evidence and gaps are listed below. The server and helpers have automated checks; a disposable x64 UEFI VM has completed imaging and booted the installed Windows disk. The default profile reached the normal country-selection OOBE screen after a long setup delay; logs confirm automatic first-boot bootstrap success. The optional local-account profile reached the desktop automatically with verified admin membership and main-answer-file deletion. Next-logon password-change behavior and complete cached-XML cleanup remain unverified. No measured result supports the one-minute goal yet.
 
 **Linux is experimental:** Debian preseed, Ubuntu Server autoinstall Proxmox-through-Debian and Bazzite AMD/Intel KDE boot/provisioning paths are implemented with automated server and simulated disk-policy checks. Bazzite has completed a native unattended UEFI VM install, automatic Plasma login, SSH access and an unarmed installed-disk reboot. Other installers, custom first-boot scripts and Proxmox conversion retain their prior verification limits. Existing Windows verification does not cover these paths. See [Linux installation](LINUX.md) for setup, limitations and VM validation steps.
 
@@ -14,7 +14,29 @@ The [2026-11-13 Linux server validation record](validation/2026-11-13-linux-serv
 
 **Desktop companion:** native status icons are included for Windows, macOS and Linux. The host still runs separately. See [Desktop status icon](DESKTOP.md) for setup, signing and graphical validation limits.
 
+## How this record is maintained
+
+This page separates verified behavior, untested paths and unsupported features.
+Missing manual hardware/integration coverage is documented here and in the
+release notes; it does not require a GitHub pre-release designation. Run public
+trials on disposable targets and keep the disk-erase warning in view.
+
+When new tests complete, append dated evidence for the exact version, platform,
+installer and test scope, then update this summary and the release notes. Retain
+the original publication-time record so later tests are not presented as checks
+that preceded release. A code or artifact change requires a new patch release;
+new evidence about unchanged artifacts can update the existing documentation.
+
 ## Verification
+
+**MCP and accounts (0.6.0):** native Windows protocol, role/image-scope,
+media-job, persistence and signed mock-OIDC checks pass, including race checks.
+Real MCP SDK clients connected over HTTP and stdio; browser tests exercised
+one-login repeated arming, viewer restrictions, logout and phone/desktop layouts.
+The Authentik and inactive Homelab rollout manifests render and pass static
+policy checks. These are source/control checks: this candidate has not been
+deployed to the live host or real Authentik tenant, and no new target install
+was performed. See the [validation record](validation/2026-11-15-mcp-auth.md).
 
 | Component | Evidence | Remaining work |
 | --- | --- | --- |

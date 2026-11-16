@@ -27,6 +27,9 @@ func TestFetchStatus(t *testing.T) {
 		name, body, kind string
 		code             int
 	}{
+		{"counts", `{"armedCount":2,"deployingCount":1,"degraded":false}`, "deploying", 200},
+		{"negative counts", `{"armedCount":-1,"deployingCount":0,"degraded":false}`, "", 200},
+		{"null counts", `{"armedCount":null,"deployingCount":0,"degraded":false}`, "", 200},
 		{"idle", `{"armed":[],"deployments":[],"degraded":false}`, "idle", 200},
 		{"armed", `{"armed":[{}],"deployments":[],"degraded":false}`, "armed", 200},
 		{"active", `{"armed":[{}],"deployments":[{"status":"running"},{"status":"booting"},{"status":"done"},{"status":"failed"}],"degraded":false}`, "deploying", 200},
@@ -41,7 +44,7 @@ func TestFetchStatus(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != "GET" || r.URL.Path != "/api/state" || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+				if r.Method != "GET" || r.URL.Path != "/api/status" || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
 					t.Errorf("unexpected request: %s %s", r.Method, r.URL)
 				}
 				w.WriteHeader(tc.code)
@@ -81,5 +84,25 @@ func TestStatusDoesNotFollowRedirectOrIgnoreCancellation(t *testing.T) {
 	cancel()
 	if _, err := fetchStatus(ctx, statusClient(), s.URL); err == nil {
 		t.Fatal("cancellation ignored")
+	}
+}
+
+func TestStatusFallsBackToLegacyHostsWithoutCredentials(t *testing.T) {
+	paths := []string{}
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Error("credential sent")
+		}
+		if r.URL.Path == "/api/status" {
+			http.NotFound(w, r)
+			return
+		}
+		io.WriteString(w, `{"armed":[{}],"deployments":[],"degraded":false}`)
+	}))
+	defer s.Close()
+	status, err := fetchStatus(context.Background(), statusClient(), s.URL)
+	if err != nil || status.Kind != "armed" || strings.Join(paths, ",") != "/api/status,/api/state" {
+		t.Fatalf("%+v %v %v", status, err, paths)
 	}
 }

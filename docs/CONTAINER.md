@@ -39,3 +39,20 @@ against the same state directory. Keep the old host disarmed during migration,
 verify HTTP, actual TFTP transfers, hashes and the arm/disarm lifecycle, then move
 the router's target-only boot address. Restarting the server drops all arms and
 unfinished Linux boot-delivery snapshots; move only when installations are idle.
+
+## Optional MCP and native OIDC
+
+The source 0.6.0 host supports -mcp and native Authentik/OIDC sign-in. See
+[MCP](MCP.md) and [Accounts](AUTH.md). Keep a single writer. MCP needs writable
+state/media; profile editing additionally needs an explicitly writable profiles
+mount, and PXE media imports need an explicitly writable approved iPXE root.
+Existing boot caches can stay read-only; errors report missing permissions.
+New media can be staged under the state/media directory and Linux can be pointed
+there while idle. Plan free space on the backing volume before large downloads.
+
+Use /healthz for readiness; authenticated /api/state is not a public probe once
+accounts/SSO are configured. /api/status exposes counts only for the companion.
+If publishing an HTTPS console/MCP ingress, allow only control/auth routes; keep
+/boot, /manifest, /linux and /api/report on the deployment LAN. The installers
+keep their own capabilities and cannot complete interactive SSO. The control
+plane does not need permission to reconfigure an external identity provider.

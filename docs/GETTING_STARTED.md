@@ -96,7 +96,7 @@ Then pick **one** way for machines to boot into minute2win:
 
 ## 6. Arm it once and watch
 
-Double-check the VM's MAC, and that its disk really is disposable. In the console, enter your token, pick your profile and arm that MAC. Then boot the VM.
+Double-check the VM's MAC, and that its disk really is disposable. Sign in once at /login as server-admin with your operator token (or use a configured local/SSO account), then pick your profile and arm that MAC. Then boot the VM.
 
 iPXE asks for `/boot/<mac>`, follows the one-time link it gets back, and that uses up the arm. The deployment shows up on the board.
 

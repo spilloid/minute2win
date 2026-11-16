@@ -13,8 +13,10 @@ import (
 )
 
 type hostState struct {
-	Armed       []json.RawMessage `json:"armed"`
-	Deployments []struct {
+	ArmedCount     *int              `json:"armedCount"`
+	DeployingCount *int              `json:"deployingCount"`
+	Armed          []json.RawMessage `json:"armed"`
+	Deployments    []struct {
 		Status string `json:"status"`
 	} `json:"deployments"`
 	Degraded bool `json:"degraded"`
@@ -35,13 +37,24 @@ func statusClient() *http.Client {
 }
 
 func fetchStatus(ctx context.Context, client *http.Client, origin string) (trayStatus, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+"/api/state", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+"/api/status", nil)
 	if err != nil {
 		return trayStatus{}, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return trayStatus{}, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		resp.Body.Close()
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, origin+"/api/state", nil)
+		if err != nil {
+			return trayStatus{}, err
+		}
+		resp, err = client.Do(req)
+		if err != nil {
+			return trayStatus{}, err
+		}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -59,7 +72,11 @@ func fetchStatus(ctx context.Context, client *http.Client, origin string) (trayS
 	if err = json.Unmarshal(body, &envelope); err != nil {
 		return trayStatus{}, err
 	}
-	for _, key := range []string{"armed", "deployments", "degraded"} {
+	required := []string{"armed", "deployments", "degraded"}
+	if _, ok := envelope["armedCount"]; ok {
+		required = []string{"armedCount", "deployingCount", "degraded"}
+	}
+	for _, key := range required {
 		if _, ok := envelope[key]; !ok {
 			return trayStatus{}, fmt.Errorf("missing state field %s", key)
 		}
@@ -71,24 +88,31 @@ func fetchStatus(ctx context.Context, client *http.Client, origin string) (trayS
 	if err = json.Unmarshal(body, &state); err != nil {
 		return trayStatus{}, err
 	}
+	if len(required) > 0 && required[0] == "armedCount" && (state.ArmedCount == nil || state.DeployingCount == nil || *state.ArmedCount < 0 || *state.DeployingCount < 0) {
+		return trayStatus{}, errors.New("invalid status counts")
+	}
 	return summarize(state), nil
 }
 
 func summarize(s hostState) trayStatus {
+	armed := len(s.Armed)
 	active := 0
 	for _, d := range s.Deployments {
 		if d.Status == "booting" || d.Status == "running" {
 			active++
 		}
 	}
+	if s.ArmedCount != nil && s.DeployingCount != nil {
+		armed, active = *s.ArmedCount, *s.DeployingCount
+	}
 	if s.Degraded {
-		return trayStatus{fmt.Sprintf("Host degraded | %d armed, %d deploying", len(s.Armed), active), "degraded"}
+		return trayStatus{fmt.Sprintf("Host degraded | %d armed, %d deploying", armed, active), "degraded"}
 	}
 	if active > 0 {
-		return trayStatus{fmt.Sprintf("%d deploying | %d armed", active, len(s.Armed)), "deploying"}
+		return trayStatus{fmt.Sprintf("%d deploying | %d armed", active, armed), "deploying"}
 	}
-	if len(s.Armed) > 0 {
-		return trayStatus{fmt.Sprintf("%d armed | waiting for network boot", len(s.Armed)), "armed"}
+	if armed > 0 {
+		return trayStatus{fmt.Sprintf("%d armed | waiting for network boot", armed), "armed"}
 	}
 	return trayStatus{"Host online | no armed machines", "idle"}
 }

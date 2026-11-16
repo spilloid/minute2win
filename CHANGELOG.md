@@ -1,6 +1,27 @@
 # Changelog
 
-## [0.5.0] - Unreleased
+## [0.6.0] - 2026-11-15
+
+- Add opt-in MCP management over stateless Streamable HTTP and a stdio bridge to
+  the existing host. Expose setup/readiness guides, profile editing/validation,
+  bounded verified media jobs, PXE controls, arming/disarming and progress/error
+  inspection through the same deployment state and guards as the console.
+- Persist per-actor MCP arming request receipts with stable run IDs. Retrying an
+  operation after boot, disarm or restart cannot silently schedule another wipe.
+  Surface stale reports and tracking recovery without claiming installation
+  success or remote cancellation.
+- Replace the per-device token field with one host sign-in. Add local accounts,
+  native OIDC (including Authentik), an optional trusted-proxy integration,
+  viewer/operator/admin roles and exact image scopes across console/API/MCP.
+  Hash local passwords and personal tokens; revoke credentials after policy
+  updates. Retain M2W_TOKEN as a bootstrap administrator credential.
+- Add a counts-only status endpoint and update the native companion to use it,
+  preserving credential-free status without exposing authenticated target data.
+- Add native protocol, security, media, lifecycle and OIDC regressions, real MCP
+  SDK HTTP/stdio checks and browser checks for one-login repeated arming and role
+  restrictions. No new physical or VM installation is claimed for this change.
+
+### Bazzite and container hosting
 
 - Package the headless server in a non-root Linux container. Build source-SHA images with current stable Go in Actions; keep operator credentials, profiles, assets and state outside the image. Document host networking for TFTP and single-writer persistent deployments.
 

@@ -1,7 +1,7 @@
 """Playwright UX check for minute2win-server's page (STD-008 style): drive the real UI, assert the arm -> boot -> report flow,
 assert no horizontal page scroll at phone and desktop widths, and save screenshots as evidence.
    python3 test_ui.py <base-url> <screenshot-dir>"""
-import json, sys, urllib.request
+import json, os, sys, urllib.request
 from playwright.sync_api import sync_playwright, expect
 
 BASE, SHOTS = sys.argv[1].rstrip("/"), sys.argv[2]
@@ -31,7 +31,7 @@ def no_hscroll(page, label):
 
 
 with sync_playwright() as p:
-    browser = p.chromium.launch()
+    browser = p.chromium.launch(executable_path=os.environ.get("M2W_UI_BROWSER") or None)
     page = browser.new_page(viewport={"width": 1280, "height": 900})
     page.goto(BASE + "/")
     expect(page.locator("select[name=manifest] option")).to_have_count(1)  # the fixture profile in tests/ui/profiles (the shipped one is a placeholder template)
@@ -46,9 +46,9 @@ with sync_playwright() as p:
 
     # arm
     page.fill("input[name=mac]", MAC.upper().replace(":", "-"))
-    page.select_option("select[name=manifest]", "win11-pro")
+    page.select_option("select[name=manifest]", os.environ.get("M2W_UI_PROFILE", "win11-pro"))
     page.click("button[type=submit]")
-    expect(page.locator("#msg")).to_contain_text(f"Armed {MAC} for win11-pro")
+    expect(page.locator("#msg")).to_contain_text(f"Armed {MAC} for " + os.environ.get("M2W_UI_PROFILE", "win11-pro"))
     expect(page.locator("#armed tbody tr")).to_have_count(1)
     expect(page.locator("#armed tbody")).to_contain_text(MAC)
     page.screenshot(path=f"{SHOTS}/armed-desktop.png", full_page=True)
