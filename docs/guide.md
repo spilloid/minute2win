@@ -18,6 +18,11 @@ Welcome! minute2win reinstalls Windows on a machine over the network. You arm th
 
 ## The console
 
+Source 0.6.0 adds [MCP control](MCP.md) and [accounts/SSO](AUTH.md). An LLM can
+guide setup, acquire pinned media, configure profiles and monitor authorized
+deployments. Browser operators sign in once instead of entering a credential
+for every device.
+
 Arm a machine, and it shows up in the **Armed** list until it boots:
 
 ![The console after arming a machine: the warning that an armed machine is wiped on its next network boot, the armed list with a Disarm button, and an empty deployments board.](assets/screenshots/armed-desktop.png)
@@ -39,6 +44,8 @@ When it boots, the arm is used up and the board fills in each phase's lap time:
 | [Manifests](MANIFESTS.md) | Configure the image, disk sizes, setup screens, countdown and reporting |
 | [Server](SERVER.md) | Look up every server flag, the built-in PXE and TFTP |
 | [API](API.md) | Arm, disarm and read state from a script |
+| [MCP](MCP.md) | Let an LLM configure, drive and monitor minute2win |
+| [Accounts and SSO](AUTH.md) | Configure local accounts, Authentik and image scopes |
 | [Troubleshooting](TROUBLESHOOTING.md) | Work out why something didn't happen |
 | [Status](STATUS.md) | See the verification record, known issues and what's next |
 | [Releasing](RELEASING.md) | Check signed downloads, or cut a release |

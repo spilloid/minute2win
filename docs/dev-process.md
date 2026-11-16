@@ -261,3 +261,30 @@ The corrected default-profile run completed imaging/reclaim and booted Windows 2
 - Native Windows fixture-menu interactions and duplicate/Quit checks passed; every request was a credential-free GET /api/state. Cropped synthetic menu capture inspected. Patched the Go build minimum after govulncheck found issues in local Go 1.27.0; scan with current Go 1.27.4 reported none. Release workflow mock regressions, actionlint, site-version and shell syntax checks passed. Full platform CI and signed artifact checks remain release gates. See validation/2026-11-14-desktop.md.
 
 - First PR CI passed native Windows/Linux/macOS ARM companion jobs, Windows/Linux server checks, UI, AppImage, scripts and docs. Pester caught the app bundle identifier containing the maintainer-brand string prohibited in build scripts. Changed the new app/LaunchAgent identifier consistently to `io.github.spilloid.minute2win.tray`; the image-host guard stays unchanged.
+
+## 2026-11-14 - Bazzite network installer
+
+- Requested for a Radeon RX 6600 gaming PC after its cluster workloads were retired. Added a native Fedora 45 Anaconda path for the official Bazzite AMD/Intel KDE image, with a pinned OCI digest, hash-checked stage2 and capability-gated tree metadata. The shared disk guard/countdown and one-use boot lifecycle remain in force.
+- Configure key-only administration, optional KDE automatic login, signed stable updates and the installed-system reporting service in OSTree's writable locations.
+- Native Windows vet/tests, Linux tests/race checks, generated shell syntax, native Kickstart validation and existing Playwright/overflow checks passed. The initial native OS install/first boot completed. Actual desktop verification exposed a console-target default and Plasma Login Manager replacing SDDM. Fixed both, reproduced the corrected desktop in the installed guest, and started a fresh unattended blank-disk retest. A transient GHCR TLS failure stopped one retry and was reported as failed. See validation/2026-11-14-bazzite.md for exact assets and remaining limits.
+- Independent adversarial review has not run. Keep the PR draft pending STD-001 review; no merge, release or tag was performed.
+
+- Final corrected candidate completed an unattended blank-disk UEFI install in 1,609.6 s. Verified the exact image, signed stable update policy, key-only administration, enforcing SELinux, actual Wayland Plasma automatic login and an unarmed OS reboot with a changed boot ID and automatic login again. All code CI jobs and documentation checks passed for the desktop fix. Published only synthetic VM captures/results; physical hardware and Secure Boot remain unverified.
+
+
+## 2026-11-15 - MCP control, accounts and Authentik integration
+
+- Requested: full LLM control and guided media setup, then one-login local/SSO authentication, role/image-scoped MCP arming and monitoring, plus HomeLab_ac/Authentik source updates.
+- Added an opt-in MCP HTTP endpoint and stdio bridge to the existing host, 28 tools, resources/prompts, confined bounded media jobs, profile/configuration management, PXE controls, durable idempotent arm receipts, stable run monitoring and explicit stopped-target tracking recovery. Target power/firmware and Windows ADK/build/hosting remain guided external operations.
+- Added local sessions/accounts, maintained OIDC/JWT validation libraries, optional trusted-proxy authentication, viewer/operator/admin image scopes and revocable personal tokens. Removed the per-device token field. The native companion uses anonymous counts with a legacy fallback.
+- HomeLab_ac has a native Authentik PKCE provider and an inactive rollout component. No live reconciliation, image publication or deployment was performed; production activation requires a tested new image pin. Existing wildcard tunnel routing applies.
+- Native server/companion vet and race checks, real MCP SDK HTTP/stdio, browser login/RBAC/legacy-console checks, source cross-builds, Kustomize/static policy checks and site-version checks pass. Signed mock OIDC verifies state/nonce/PKCE/signatures/claims; no real IdP login or target install is claimed. See validation/2026-11-15-mcp-auth.md for findings and limits.
+- Independent adversarial review has not run and remains pending before merge/release. No review waiver, commit, merge, tag or release was made in this task.
+
+
+## 2026-11-15 - Normal public-trial release preparation
+
+- The operator explicitly requested publication as a normal release, with untested hardware/integration paths documented and updated as dated testing evidence accrues. CI, signing, timestamps, checksums and artifact verification remain publication requirements; new evidence does not rewrite publication-time history, and artifact fixes require a patch release.
+- The operator explicitly authorized a scoped independent review by a different model. Astra/high reviewed the release diff against main across MCP/auth/roles, media/roots, receipts/recovery, Bazzite and packaging. It found one P2: a scoped operator could replace an outside-scope pending arm with an allowed image, bypassing disarm restrictions.
+- Reproduced with TestScopedOperatorCannotReplaceAnotherImagesPendingArm: API returned 200 and invalidated the other profile's ticket before the fix. All control paths now pass the principal into the common arm operation; an existing arm's image scope is checked under the state mutex before replacement. The regression covers API/UI/MCP refusal preserving profile+ticket, and permitted/same-scope/expired-arm replacements. Targeted native race checks pass.
+- Astra's narrow follow-up confirmed closure and found no introduced defect. No further substantiated blocking finding remained in its scope. Fresh hosted CI and signed/package artifact checks are required before publication. Missing live IdP and hardware coverage stays documented as verification limits.

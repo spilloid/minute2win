@@ -24,6 +24,7 @@ From the repository root:
 | tests/vm/deploy-vm.sh | Intended full VM chain; requires external assets, kvm-it harness and substantial free disk space |
 | tests/setup-signing-github.test.sh | GitHub signing setup script with a fake gh |
 | python3 tests/release_workflow_test.py | Release shell steps with mock gh; requires PyYAML |
+| python3 tests/mcp/test_client.py SERVER ARTIFACTS --ui | Real MCP SDK HTTP/stdio and browser login/RBAC/legacy-console regressions; needs mcp 1.30.0 and Playwright 1.55.0 |
 
 Read each harness before running it. The VM deployment harness uses a disposable disk and screenshots; it does not independently assert a successful Windows installation. CI runs PowerShell checks, Go tests/cross-builds, Playwright, workflow lint and script checks.
 

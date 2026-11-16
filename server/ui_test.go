@@ -49,18 +49,18 @@ func TestUIRefusalKeepsTheField(t *testing.T) {
 
 func TestUITokenGuardsArming(t *testing.T) {
 	f := newFixture(t, "s3cret")
-	if out := f.form(t, "/ui/arm", url.Values{"mac": {"52:54:00:12:34:56"}, "manifest": {"win11-pro"}}); !strings.Contains(out, "token required") {
+	if out := f.form(t, "/ui/arm", url.Values{"mac": {"52:54:00:12:34:56"}, "manifest": {"win11-pro"}}); !strings.Contains(out, "sign in") {
 		t.Fatalf("no token: %s", out)
 	}
 	if len(f.s.st.Armed) != 0 {
 		t.Fatal("armed without a token")
 	}
 	f.form(t, "/ui/arm", url.Values{"mac": {"52:54:00:12:34:56"}, "manifest": {"win11-pro"}, "token": {"s3cret"}})
-	if out := f.form(t, "/ui/disarm", url.Values{"mac": {"52:54:00:12:34:56"}, "token": {"bad"}}); !strings.Contains(out, "token required") || len(f.s.st.Armed) != 1 {
+	if out := f.form(t, "/ui/disarm", url.Values{"mac": {"52:54:00:12:34:56"}, "token": {"bad"}}); !strings.Contains(out, "sign in") || len(f.s.st.Armed) != 1 {
 		t.Fatalf("disarmed with a bad token: %s", out)
 	}
-	if _, page := f.do(t, "GET", "/", "", ""); !strings.Contains(page, `name="token"`) {
-		t.Fatal("token field missing when a token is required")
+	if _, page := f.do(t, "GET", "/", "", ""); strings.Contains(page, `name="token"`) || !strings.Contains(page, `action="/login"`) {
+		t.Fatal("unauthenticated console should offer sign-in, without a per-device token field")
 	}
 }
 

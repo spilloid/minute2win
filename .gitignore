@@ -1,6 +1,8 @@
 dist/
 /server/server
 /server/server.exe
+/server/.gocache/
+/artifacts/mcp-validation/
 *.test
 
 _site/

@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in · minute2win</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><header><h1>minute2win</h1><p class="tag">Sign in once to manage your deployments.</p></header><main><section aria-labelledby="signin-h"><h2 id="signin-h">Sign in</h2>
+{{if .SSOEnabled}}<p><a class="sso-signin" href="/auth/login">Sign in with SSO</a></p>{{end}}
+<form method="post" action="/login"><label>Account <input name="username" autocomplete="username" required></label><label>Password <input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form>
+{{if .Msg}}<p role="alert" class="err">{{.Msg}}</p>{{end}}
+<p>Use your local account{{if not .LocalAccounts}}, or <span class="mono">server-admin</span> with the host’s operator token{{end}}. For SSO, open the address provided by your administrator.</p>
+<p class="warn">Arming a machine schedules a disk wipe on its next network boot.</p></section></main></body></html>

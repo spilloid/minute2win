@@ -4,9 +4,9 @@ title: Linux network installation
 
 # Linux network installation
 
-The source tree adds experimental Debian, Ubuntu Server and Debian-based Proxmox profiles. They use the same console, MAC arming, proxyDHCP/TFTP and one-time iPXE ticket as Windows. Linux does not require WinPE, the ADK, wimboot or a Windows image host.
+The source tree adds experimental Debian, Ubuntu Server, Debian-based Proxmox and Bazzite profiles. They use the same console, MAC arming, proxyDHCP/TFTP and one-time iPXE ticket as Windows. Linux does not require WinPE, the ADK, wimboot or a Windows image host.
 
-**Verification limit:** server tests and simulated disk-policy tests are available; no Linux installer has completed a VM or physical-machine deployment in this project's verification record. Start with a disposable x86_64 VM, Secure Boot disabled, an empty internal disk and a DHCP-enabled NIC. The native Proxmox ISO installer, ZFS/RAID layouts, disk encryption, ARM and Secure Boot are outside this implementation. The existing Windows VM evidence does not validate Linux.
+**Verification limit:** server tests and simulated disk-policy tests are available. Bazzite has completed a native UEFI VM unattended install, automatic Plasma login, key-based SSH and an unarmed reboot; [its validation record](validation/2026-11-14-bazzite.md) gives exact assets and limits. Other installers retain their prior verification limits. Start with a disposable x86_64 VM, Secure Boot disabled, an empty internal disk and a DHCP-enabled NIC. The native Proxmox ISO installer, ZFS/RAID layouts, disk encryption, ARM and Secure Boot are outside this implementation. The existing Windows VM evidence does not validate Linux.
 
 Arming authorizes erasing one eligible disk, without another prompt. Debian and Ubuntu perform a fresh installation using their own installer; these are not persistent diskless desktops or arbitrary ISO chainloading.
 
@@ -19,6 +19,7 @@ Create a dedicated `linux-assets` directory. All referenced files must be direct
 | Debian | Matching `linux` and `initrd.gz` from one amd64 Debian **bookworm** or **trixie** netboot build, renamed `debian-linux` and `debian-initrd.gz` |
 | Ubuntu Server | A verified live-server amd64 ISO, plus `casper/vmlinuz` and `casper/initrd` extracted from that exact ISO, renamed `ubuntu-server.iso`, `ubuntu-vmlinuz` and `ubuntu-initrd` |
 | Proxmox | Debian trixie netboot files plus a reviewed, host-specific `proxmox-firstboot.sh`, described below |
+| Bazzite AMD/Intel KDE | `images/pxeboot/vmlinuz`, `images/pxeboot/initrd.img` and `images/install.img` from one verified Fedora 45 Everything netinstall ISO, renamed `bazzite-linux`, `bazzite-initrd.img` and `bazzite-stage2.img`, plus a pinned Bazzite amd64 container digest |
 
 Obtain files from the distributions' official sites. Verify upstream signatures and checksums before computing the hashes for your profile. A locally calculated checksum alone does not prove a download's authenticity. See Debian's [network installation guide](https://www.debian.org/distrib/netinst.en.html) and [installation-image verification](https://www.debian.org/CD/verify), and Canonical's [server netboot guide](https://ubuntu.com/server/docs/how-to/installation/how-to-netboot-the-server-installer-on-amd64/) and [ISO verification guide](https://ubuntu.com/tutorials/how-to-verify-ubuntu).
 
@@ -37,12 +38,15 @@ On Linux, use `sha256sum linux-assets/*`.
 
 Copy the appropriate template from `manifests/examples/debian.json`, `ubuntu.json` or `proxmox.json` directly into your own profiles directory, for example as `profiles/lab-debian.json`. Examples remain hidden from the profile selector until copied. Replace every checksum placeholder and set `authorizedKeys` to your public SSH key. Never include a private key or password. Save JSON as UTF-8 without a BOM.
 
-The top-level `installer` is `debian`, `ubuntu` or `proxmox`. Omitting it, or setting `windows`, retains the Windows manifest format. Unknown installer names are refused.
+The top-level `installer` is `debian`, `ubuntu`, `proxmox` or `bazzite`. Omitting it, or setting `windows`, retains the Windows manifest format. Unknown installer names are refused.
 
 | `linux` setting | Behavior |
 | --- | --- |
 | `kernel`, `initrd` | Required `{ "file": "plain-filename", "sha256": "64 hex digits" }` objects |
 | `iso` | Required for Ubuntu only; the same file/hash object format |
+| `stage2` | Required for Bazzite only; the Fedora installer runtime, using the same file/hash object format |
+| `containerImage` | Bazzite only: `ghcr.io/ublue-os/bazzite@sha256:<amd64 digest>`. Mutable tags and other image variants are refused |
+| `desktopAutologin` | Bazzite KDE only, default false. Automatically opens the configured user's Plasma session; SSH still requires its key |
 | `firstBoot` | Optional pinned shell script; required for Proxmox. Runs as root in the installed OS |
 | `suite` | Debian `bookworm` or `trixie`; Proxmox requires `trixie`. Not used by Ubuntu |
 | `hostname` | Optional lowercase DNS hostname. Default `m2w-<MAC without colons>`. Proxmox requires an explicit FQDN |
@@ -83,11 +87,26 @@ Open the console, choose your Linux profile, arm the checked disposable VM's MAC
 
 Before the native installer partitions, the Linux guard chooses the first qualifying disk in the shell's filename order, preferring ordinary disks over MMC. It excludes removable media, USB ancestry, detected iSCSI/FC ancestry, optical/loop/device-mapper/md/network block-device names, disks with active holders, mounted partitions and active swap. A qualifying disk must meet `minSizeGB`. Virtio disks are eligible, so disposable VMs work. There is no mandatory disk-selection prompt. Remove any other disk you cannot afford to lose.
 
-The guard runs a countdown, then passes the selected path to Debian's partman or Ubuntu's storage layout. Ubuntu begins with an impossible disk match so a missing guard cannot silently select a default disk. Debian blocks the installer if its guard fails. Both install a single-disk default layout; they do not clone Windows partitioning rules. Existing active LVM/RAID holders can cause all disks to be refused; deactivate those manually in a disposable environment before retrying.
+The guard runs a countdown, then passes the selected path to Debian's partman, Ubuntu's storage layout or Bazzite's Kickstart disk include. Ubuntu begins with an impossible disk match so a missing guard cannot silently select a default disk. Debian blocks the installer if its guard fails. Bazzite's pre-install hook stops on failure and generates disk commands only after the guard succeeds. Each installs a single-disk layout; they do not clone Windows partitioning rules. Existing active LVM/RAID holders can cause all disks to be refused; deactivate those manually in a disposable environment before retrying.
 
 The board receives coarse `guard`, `install`, `reboot`, `firstboot`, `complete` or failure reports. Individual package installation steps and per-phase lap timing are not instrumented. Completion means the installed OS actually ran its first-boot service and any configured custom script returned success. Reporting is best effort; if the server is unavailable, inspect `/var/log/minute2win-firstboot.log` and `journalctl -u minute2win-firstboot` on the target. Debian failures outside the provided hooks may leave the board at the last phase; inspect the installer console and logs.
 
 Linux boot files and generated configuration are gated by the deployment's random capability, work only while the deployment is booting/running, and expire three hours after boot. The first report does not close seed delivery. Restarting the server intentionally drops the Linux boot-delivery snapshot, so an unfinished install may fail and need re-arming. An already installed first-boot service has all scripts it needs locally. Old capabilities stop working after completion, failure, expiry or re-arming followed by another boot.
+
+## Bazzite AMD/Intel KDE
+
+This profile uses Fedora 45 Anaconda's native `ostreecontainer` payload to install the official Bazzite desktop image. It supports the AMD/Intel KDE variant, including Radeon RX 6600 hardware. NVIDIA and GNOME variants are outside the current profile. A VM boot verifies the installer path; it does not verify a physical GPU or its gaming performance.
+
+1. Download the Fedora 45 Everything x86_64 netinstall ISO from [Fedora](https://fedoraproject.org/server/download). Verify its signed checksum file using Fedora's official signing keys. Extract the three files listed above from that same ISO and calculate their SHA-256 hashes.
+2. Resolve the official `ghcr.io/ublue-os/bazzite:stable` multi-platform manifest to its **linux/amd64** manifest digest. Record the image version and digest. Use that immutable reference in `containerImage`; arming validates its syntax, while Anaconda fetches and verifies the container content during installation. The server does not pre-download or verify its signature at arm time. Keep GHCR reachable from the target. The tested image has about 4.45 GB of compressed layers, separate from the installer downloads.
+3. Copy `manifests/examples/bazzite.json` into your profiles directory. Set the three asset hashes, digest and your public SSH key. Use a disposable UEFI VM with Secure Boot disabled, 8 GiB RAM and an empty 80 GiB internal disk for initial testing. These are test settings, not measured minimum requirements.
+4. Arm and network boot as usual. Anaconda downloads its runtime through a capability-gated `.treeinfo`, partitions only the guarded disk with its Btrfs default layout, installs the pinned container and reboots. The post-install hook configures signed stable updates using the same `bootc switch --mutate-in-place --enforce-container-sigpolicy` operation as the [upstream Bazzite installer](https://github.com/ublue-os/bazzite/blob/main/installer/titanoboa_hook_postrootfs.sh).
+
+With `desktopAutologin: true`, KDE opens automatically as `m2w` (or your configured username). Passwords remain locked and the account has passwordless sudo. Open Konsole on the first desktop boot and run `sudo passwd m2w` to choose your personal password before locking the screen. The same command works over key-authenticated SSH. There is no shared starter password. Keep other disks disconnected when reimaging a gaming PC.
+
+Bazzite 45 uses Plasma Login Manager; older compatible images may use SDDM. The setup hook detects the installed manager and enables the graphical boot target, including when automatic login is disabled.
+
+Installer failures are reported best effort. Inspect `/tmp/minute2win-pre.log`, Anaconda's `/tmp/*log` files and the installed system's `/root/minute2win-install.log` when diagnosing a failed install. The physical machine remains unarmed until you explicitly arm its MAC. A registry/TLS failure can occur after partitioning; the failed arm stays consumed. Fix connectivity and re-arm to retry.
 
 ## Proxmox through Debian
 

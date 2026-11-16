@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.0] - 2026-11-15
+
+- Add opt-in MCP management over stateless Streamable HTTP and a stdio bridge to
+  the existing host. Expose setup/readiness guides, profile editing/validation,
+  bounded verified media jobs, PXE controls, arming/disarming and progress/error
+  inspection through the same deployment state and guards as the console.
+- Persist per-actor MCP arming request receipts with stable run IDs. Retrying an
+  operation after boot, disarm or restart cannot silently schedule another wipe.
+  Surface stale reports and tracking recovery without claiming installation
+  success or remote cancellation.
+- Replace the per-device token field with one host sign-in. Add local accounts,
+  native OIDC (including Authentik), an optional trusted-proxy integration,
+  viewer/operator/admin roles and exact image scopes across console/API/MCP.
+  Hash local passwords and personal tokens; revoke credentials after policy
+  updates. Retain M2W_TOKEN as a bootstrap administrator credential.
+- Add a counts-only status endpoint and update the native companion to use it,
+  preserving credential-free status without exposing authenticated target data.
+- Add native protocol, security, media, lifecycle and OIDC regressions, real MCP
+  SDK HTTP/stdio checks and browser checks for one-login repeated arming and role
+  restrictions. No new physical or VM installation is claimed for this change.
+
+### Bazzite and container hosting
+
+- Package the headless server in a non-root Linux container. Build source-SHA images with current stable Go in Actions; keep operator credentials, profiles, assets and state outside the image. Document host networking for TFTP and single-writer persistent deployments.
+
+- Add experimental Bazzite AMD/Intel KDE network installation through Fedora 45 Anaconda and a digest-pinned official OCI image. Reuse the existing profile selector, one-use boot ticket, disk guard, countdown and first-boot board reports.
+- Gate and hash-check the Fedora installer runtime alongside the kernel and initrd. Reject mutable or unsupported Bazzite images before arming, and provide capability-gated installation-tree metadata for native Anaconda boot.
+- Configure SSH-key-only administration, optional KDE automatic login and signed stable updates on the installed immutable system. Add an example profile and setup documentation. Native VM evidence and verification limits are recorded separately.
+
 ## [0.4.0] - 2026-11-14
 
 - Add an optional native Windows tray, macOS menu-bar and Linux StatusNotifier companion. It opens the existing console, shows server-reported armed/deploying counts and degraded/unreachable states, and offers local profiles/logs shortcuts. Quitting the icon leaves the host and deployments running. The companion does not access the operator token or mutate deployment state.

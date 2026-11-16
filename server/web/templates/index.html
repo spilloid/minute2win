@@ -11,18 +11,18 @@
 <header>
   <h1>minute2win</h1>
   <p class="tag">boot to flashed Windows, against the clock</p>
+  <div class="account"><span>{{.Identity.Username}} · {{.Identity.Role}}</span>{{if .ShowLogout}}<form method="post" action="/logout"><button>Sign out</button></form>{{end}}</div>
 </header>
 <main>
   <section aria-labelledby="arm-h">
     <h2 id="arm-h">Arm a machine</h2>
     <p class="warn">An armed machine is <strong>wiped on its next network boot</strong>, with no questions asked. One arm is one wipe:
       the machine is disarmed when it boots. Unused arms expire.</p>
-    <form id="arm" hx-post="ui/arm" hx-target="#msg" hx-swap="outerHTML">
+    {{if .CanArm}}<form id="arm" hx-post="ui/arm" hx-target="#msg" hx-swap="outerHTML">
       <label>MAC address {{template "mac-input" ""}}</label>
       <label>Profile <select name="manifest" required>{{range .Manifests}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
-      {{if .TokenRequired}}<label>Token <input id="token" name="token" type="password" autocomplete="current-password"></label>{{end}}
       <button type="submit">Arm for wipe</button>
-    </form>
+    </form>{{else}}<p>Your account can monitor deployments. An operator can arm machines for your permitted images.</p>{{end}}
     {{template "msg" .Msg}}
   </section>
   <section aria-labelledby="armed-h">

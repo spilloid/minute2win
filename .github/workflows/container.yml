@@ -1,0 +1,71 @@
+name: Container image
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .github/workflows/container.yml
+      - server/**
+      - manifests/**
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Resolve current stable Go
+        id: go
+        shell: bash
+        run: |
+          version="$(go env GOVERSION)"
+          echo "version=${version#go}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish immutable source tag
+        uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/minute2win-server:sha-${{ github.sha }}
+          build-args: GO_VERSION=${{ steps.go.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: mode=min
+      - name: Smoke-test published runtime
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/minute2win-server@${{ steps.build.outputs.digest }}
+        run: |
+          docker run --rm "$IMAGE" -help
+          docker run -d --name bind-check --read-only \
+            --cap-drop ALL --cap-add NET_BIND_SERVICE \
+            --security-opt no-new-privileges \
+            --sysctl net.ipv4.ip_unprivileged_port_start=1024 \
+            -e M2W_TOKEN=isolated-bind-regression \
+            --tmpfs /data:uid=65532,gid=65532,mode=0700 "$IMAGE" \
+            -listen=:8080 -data=/data -open=false -pxe \
+            -pxe-dir=/manifests -pxe-file-x64=win11-pro.json \
+            -pxe-file-bios= -pxe-file-arm64= \
+            -pxe-dhcp-port=0 -pxe-proxy-port=0
+          sleep 3
+          docker logs bind-check
+          test "$(docker inspect -f '{{.State.Running}}' bind-check)" = true
+          docker logs bind-check 2>&1 | grep -F 'TFTP on UDP 69'
+          docker rm -f bind-check
+          echo "Published $IMAGE" >> "$GITHUB_STEP_SUMMARY"

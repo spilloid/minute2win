@@ -306,15 +306,22 @@ func TestGeneratedLinuxShellSyntax(t *testing.T) {
 			t.Fatalf("%s: %v %s", name, err, b)
 		}
 	}
-	for _, kind := range []string{"debian", "ubuntu", "proxmox"} {
-		f, _ := linuxFixture(t, kind)
+	for _, kind := range []string{"debian", "ubuntu", "proxmox", "bazzite"} {
+		var f *fixture
+		finish := "finish.sh"
+		if kind == "bazzite" {
+			f, _ = bazziteFixture(t)
+			finish = "bazzite-finish.sh"
+		} else {
+			f, _ = linuxFixture(t, kind)
+		}
 		armLinux(t, f)
 		base, _ := linuxBootBase(t, f)
-		for _, file := range []string{"guard.sh", "finish.sh", "firstboot-wrapper.sh"} {
+		for _, file := range []string{"guard.sh", finish, "firstboot-wrapper.sh"} {
 			_, body := f.do(t, "GET", base+file, "", "")
 			check(kind+"/"+file, body)
 		}
-		if kind != "ubuntu" {
+		if kind == "debian" || kind == "proxmox" {
 			_, seed := f.do(t, "GET", base+"preseed.cfg", "", "")
 			for _, line := range strings.Split(seed, "\n") {
 				for _, prefix := range []string{"d-i partman/early_command string ", "d-i preseed/late_command string "} {

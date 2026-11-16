@@ -51,14 +51,14 @@
         <p class="lead">Type a MAC address. Pick a profile. That machine&rsquo;s next network boot wipes it and installs Windows from <em>your</em> SHA-256-verified image, while every phase lands on a live board with its lap time. No USB stick. Nobody at the keyboard. One small server you own.</p>
         <div class="actions">
           <a class="button primary" href="WALKTHROUGH.html">Set it up, start to finish <span aria-hidden="true">&rarr;</span></a>
-          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.4.0">Download v0.4.0 <span aria-hidden="true">&darr;</span></a>
+          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.6.0">Download v0.6.0 <span aria-hidden="true">&darr;</span></a>
         </div>
         <div class="warning" role="note">
           <span class="warn-icon" aria-hidden="true">!</span>
           <p><strong>Deployment erases the selected internal disk without a confirmation prompt.</strong> That is the point: arming a machine is the authorization to reimage it. Start with a disposable VM, use your own boot files and Windows image, and set <code>M2W_TOKEN</code> before the server is reachable from your network.</p>
         </div>
-        <p class="hero-meta">v0.4.0 &middot; early release &middot; signed Windows x64 &middot; Linux amd64/arm64 + AppImage &middot; macOS Intel/Apple silicon &middot; MIT licensed</p>
-        <p class="hero-meta"><a href="LINUX.html">Experimental Debian, Ubuntu Server and Proxmox-through-Debian installers</a> use the same profile selector. Linux target installation is not yet boot-verified.</p>
+        <p class="hero-meta">v0.6.0 &middot; Windows x64 &middot; Linux amd64/arm64 + AppImage &middot; macOS Intel/Apple silicon &middot; MIT licensed</p>
+        <p class="hero-meta"><a href="LINUX.html">Experimental Debian, Ubuntu Server, Proxmox-through-Debian and Bazzite installers</a> use the same profile selector. See the <a href="validation/2026-11-14-bazzite.html">Bazzite UEFI VM validation record</a> for tested behavior and hardware limits.</p>
       </div>
     </section>
 
@@ -233,7 +233,7 @@
     <section id="status" class="section wrap" aria-labelledby="status-title">
       <div class="section-heading">
         <div><p class="eyebrow">Know where it stands</p><h2 id="status-title">Early release.<br><span class="foil">Honest</span> about it.</h2></div>
-        <p>Version 0.4.0 is for evaluation on machines you can afford to wipe. Every claim on this page comes from the public verification record.</p>
+        <p>Version 0.6.0 is available for public trials on machines you can afford to wipe. Untested paths are listed in the verification record. Every claim on this page comes from the public verification record.</p>
       </div>
       <div class="status-grid">
         <div class="status-list">
@@ -305,7 +305,7 @@ export M2W_TOKEN='replace-with-a-long-random-token'
         <p>Arm it. Boot it. Read the board. Then decide whether minute2win belongs on your network.</p>
         <div class="actions">
           <a class="button primary" href="WALKTHROUGH.html">Set it up <span aria-hidden="true">&rarr;</span></a>
-          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.4.0">Download v0.4.0 <span aria-hidden="true">&darr;</span></a>
+          <a class="button ghost" href="https://github.com/spilloid/minute2win/releases/tag/v0.6.0">Download v0.6.0 <span aria-hidden="true">&darr;</span></a>
         </div>
       </div>
     </section>

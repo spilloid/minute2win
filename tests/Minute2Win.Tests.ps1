@@ -38,7 +38,7 @@ Describe 'Test-M2WManifest' {
     } | ForEach-Object FullName) {
         Test-M2WManifest (Get-Content $_ -Raw | ConvertFrom-Json) | Should -BeNullOrEmpty
     }
-    It 'refuses Linux profiles in the Windows deployment engine' -ForEach @('debian', 'ubuntu', 'proxmox') {
+    It 'refuses Linux profiles in the Windows deployment engine' -ForEach @('debian', 'ubuntu', 'proxmox', 'bazzite') {
         $manifest = Get-Content (Join-Path $repo "manifests/examples/$_.json") -Raw | ConvertFrom-Json
         @(Test-M2WManifest $manifest).Count | Should -BeGreaterThan 0
     }

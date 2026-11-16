@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"embed"
@@ -28,6 +29,7 @@ var webFS embed.FS
 // Armed: this MAC is wiped on its next network boot. Serving the boot script consumes the arm (one wipe per arm), so a target
 // that network-boots first after the deploy reboots into Windows instead of wiping itself again.
 type Armed struct {
+	RunID    string    `json:"run_id,omitempty"`
 	MAC      string    `json:"mac"`
 	Manifest string    `json:"manifest"`
 	ArmedAt  time.Time `json:"armedAt"`
@@ -41,6 +43,7 @@ type Armed struct {
 
 // Deployment: one consumed arm, updated by the engine's reports.
 type Deployment struct {
+	RunID     string             `json:"run_id,omitempty"`
 	MAC       string             `json:"mac"`
 	Manifest  string             `json:"manifest"`
 	Installer string             `json:"installer,omitempty"`
@@ -59,11 +62,17 @@ type Deployment struct {
 }
 
 type state struct {
+	Requests    map[string]*armReceipt `json:"requests,omitempty"`
 	Armed       map[string]*Armed      `json:"armed"`
 	Deployments map[string]*Deployment `json:"deployments"`
 }
 
 type Server struct {
+	// controlMu serializes management edits against ordinary HTTP requests. Lock
+	// order is controlMu, then mu; PXE workers only acquire mu.
+	controlMu   sync.RWMutex
+	MCP         *mcpControl
+	Auth        *authStore
 	ManifestDir string        // *.json deployment profiles
 	ImageBase   string        // where wimboot, BCD, boot.sdi, boot.wim live
 	LinuxAssets string        // explicitly enabled local Linux assets, confined with os.OpenRoot
@@ -111,6 +120,9 @@ func (s *Server) Load() error {
 	s.st.Armed = map[string]*Armed{}
 	if s.st.Deployments == nil {
 		s.st.Deployments = map[string]*Deployment{}
+	}
+	if s.st.Requests == nil {
+		s.st.Requests = map[string]*armReceipt{}
 	}
 	return nil
 }
@@ -188,13 +200,19 @@ func (s *Server) manifests() ([]string, error) {
 	}
 	names := []string{}
 	for _, f := range files {
-		names = append(names, strings.TrimSuffix(filepath.Base(f), ".json"))
+		name := strings.TrimSuffix(filepath.Base(f), ".json")
+		if !s.protectedProfile(name) {
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names)
 	return names, nil
 }
 
 func (s *Server) Handler() http.Handler {
+	if s.Auth == nil {
+		s.Auth = newAuthStore("")
+	}
 	mux := http.NewServeMux()
 	web, _ := fs.Sub(webFS, "web")
 	mux.HandleFunc("GET /{$}", s.uiIndex)
@@ -203,8 +221,23 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/deployments", s.uiDeployments)
 	mux.HandleFunc("POST /ui/arm", s.uiArm)
 	mux.HandleFunc("POST /ui/disarm", s.uiDisarm)
+	mux.HandleFunc("GET /login", s.uiLogin)
+	mux.HandleFunc("POST /login", s.uiLoginPost)
+	mux.HandleFunc("POST /logout", s.uiLogout)
+	mux.HandleFunc("GET /auth/login", s.oidcLogin)
+	mux.HandleFunc("GET /auth/callback", s.oidcCallback)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.degraded {
+			http.Error(w, "degraded", http.StatusServiceUnavailable)
+			return
+		}
+		fmt.Fprintln(w, "ok")
+	})
 	mux.HandleFunc("GET /api/manifests", s.listManifests)
 	mux.HandleFunc("GET /api/state", s.getState)
+	mux.HandleFunc("GET /api/status", s.publicStatus)
 	mux.HandleFunc("POST /api/armed", s.auth(requireJSON(s.arm)))
 	mux.HandleFunc("DELETE /api/armed/{mac}", s.auth(s.disarm))
 	mux.HandleFunc("GET /boot/{mac}", s.boot)
@@ -212,6 +245,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /manifest/{mac}", s.manifest)
 	mux.HandleFunc("GET /linux/{mac}/{key}/{file}", s.linuxFile)
 	mux.HandleFunc("POST /api/report", requireJSON(s.report))
+	mux.HandleFunc("/mcp", s.mcpHTTP)
 	// Every state-changing route (arm, disarm, the UI forms, reports) refuses cross-origin browser requests, so a page on another
 	// site cannot arm a wipe. Requests without browser headers (curl, scripts, the WinPE engine) are not affected. That protection
 	// lets every GET through, so booting is split in two (see boot): GET /boot/{mac} changes nothing, and the arm is consumed only
@@ -220,7 +254,25 @@ func (s *Server) Handler() http.Handler {
 	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-origin request refused: changes are only accepted from this server's own page or from non-browser clients", http.StatusForbidden)
 	}))
-	return cop.Handler(mux)
+	return cop.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/mcp" {
+			s.controlMu.RLock()
+			defer s.controlMu.RUnlock()
+		}
+		p, _ := s.resolvePrincipal(r, "")
+		if strings.HasPrefix(r.URL.Path, "/ui/") || r.URL.Path == "/api/state" || r.URL.Path == "/api/manifests" {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		r = r.WithContext(context.WithValue(r.Context(), principalKey{}, p))
+		if s.Auth.requiresLogin() && (strings.HasPrefix(r.URL.Path, "/ui/") || r.URL.Path == "/api/state" || r.URL.Path == "/api/manifests") && p.Role == "" {
+			if strings.HasPrefix(r.URL.Path, "/ui/") {
+				w.Header().Set("HX-Redirect", "/login")
+			}
+			http.Error(w, "sign in required", http.StatusUnauthorized)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	}))
 }
 
 // crossSiteBrowser reports whether a request visibly comes from a browser on behalf of a page of another origin. It is only an
@@ -267,21 +319,25 @@ const rebindRefusal = "without M2W_TOKEN, arming and disarming are only accepted
 
 // operatorRefusal says why an arm or disarm may not go ahead, or "" if it may. got is the token the request carries.
 func (s *Server) operatorRefusal(r *http.Request, got string) (msg string, status int) {
-	if s.Token == "" {
+	p, ok := s.resolvePrincipal(r, got)
+	if ok && p.canOperate() {
+		return "", 0
+	}
+	if ok {
+		return "operator role required", http.StatusForbidden
+	}
+	if s.Token == "" && !s.Auth.hasAccounts() {
 		if !directHost(r.Host) {
 			return rebindRefusal, http.StatusForbidden
 		}
 		return "", 0
 	}
-	if !tokenEqual(got, s.Token) {
-		return "token required", http.StatusUnauthorized
-	}
-	return "", 0
+	return "sign in or supply a valid bearer token", http.StatusUnauthorized
 }
 
 func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if msg, code := s.operatorRefusal(r, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")); msg != "" {
+		if msg, code := s.operatorRefusal(r, ""); msg != "" {
 			http.Error(w, msg, code)
 			return
 		}
@@ -304,7 +360,17 @@ func (s *Server) listManifests(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, names)
+	p := principalFromContext(r.Context())
+	if p.Role == "" && !s.Auth.requiresLogin() {
+		p = principal{Role: "admin"}
+	}
+	allowed := []string{}
+	for _, n := range names {
+		if p.allows(n) {
+			allowed = append(allowed, n)
+		}
+	}
+	writeJSON(w, allowed)
 }
 
 func (s *Server) getState(w http.ResponseWriter, r *http.Request) {
@@ -312,12 +378,21 @@ func (s *Server) getState(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	s.expire()
 	armed := []*Armed{}
+	p := principalFromContext(r.Context())
+	if p.Role == "" && !s.Auth.requiresLogin() {
+		p = principal{Role: "admin"}
+	}
 	for _, a := range s.st.Armed {
-		armed = append(armed, a)
+		if p.allows(a.Manifest) {
+			armed = append(armed, a)
+		}
 	}
 	sort.Slice(armed, func(i, j int) bool { return armed[i].ArmedAt.After(armed[j].ArmedAt) })
 	deps := []Deployment{}
 	for _, d := range s.st.Deployments {
+		if !p.allows(d.Manifest) {
+			continue
+		}
 		v := *d
 		v.Key = ""
 		deps = append(deps, v)
@@ -332,7 +407,16 @@ func (s *Server) arm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	a, err := s.doArm(req.MAC, req.Manifest)
+	p, _ := s.resolvePrincipal(r, "")
+	if !p.allows(req.Manifest) {
+		http.Error(w, "profile is outside your image scope", http.StatusForbidden)
+		return
+	}
+	a, _, err := s.doArmRequest(req.MAC, req.Manifest, p, "")
+	if err == errImageScope {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	if err == saveFail || err == degradedErr {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -342,71 +426,132 @@ func (s *Server) arm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, a)
+	s.audit(p, "arm", a.MAC, a.Manifest, "armed")
 }
 
 func (s *Server) disarm(w http.ResponseWriter, r *http.Request) {
 	mac, _ := normMAC(r.PathValue("mac"))
-	removed, err := s.doDisarm(mac)
+	p, _ := s.resolvePrincipal(r, "")
+	removed, err := s.doDisarmAs(p, mac)
 	switch {
+	case err == errImageScope:
+		http.Error(w, err.Error(), http.StatusForbidden)
 	case err != nil:
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	case !removed:
 		http.Error(w, "not armed (if it already booted, the deployment is under way and was not cancelled)", http.StatusNotFound)
 	default:
 		w.WriteHeader(http.StatusNoContent)
+		s.audit(p, "disarm", mac, "", "disarmed")
 	}
 }
 
-// doArm and doDisarm are shared by the JSON API and the web UI, so both follow the same rules.
+// doArm is a privileged internal convenience for local callers/tests. Control
+// interfaces must pass the caller's principal to doArmRequest.
 func (s *Server) doArm(rawMAC, manifest string) (*Armed, error) {
+	a, _, err := s.doArmRequest(rawMAC, manifest, principal{Role: "admin"}, "")
+	return a, err
+}
+
+// doArmRequest records an MCP idempotency receipt in the SAME commit as the arm.
+// A retry after boot, disarm or restart returns the receipt and cannot re-arm.
+func (s *Server) doArmRequest(rawMAC, manifest string, actor principal, requestID string) (*Armed, bool, error) {
 	mac, ok := normMAC(rawMAC)
 	if !ok {
-		return nil, errBadMAC
+		return nil, false, errBadMAC
 	}
 	if !nameRe.MatchString(manifest) {
-		return nil, errBadManifest
+		return nil, false, errBadManifest
+	}
+	if !actor.canOperate() || !actor.allows(manifest) {
+		return nil, false, errImageScope
+	}
+	requestKey := ""
+	if requestID != "" {
+		requestKey = hashBytes([]byte(actor.Username + "\x00" + requestID))
+		s.mu.Lock()
+		receipt := s.st.Requests[requestKey]
+		s.mu.Unlock()
+		if receipt != nil {
+			return receipt.replay(mac, manifest)
+		}
 	}
 	lp, err := readProfile(filepath.Join(s.ManifestDir, manifest+".json"), manifest)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if lp == nil {
 		if s.ImageBase == "" {
-			return nil, errNoImageBase
+			return nil, false, errNoImageBase
 		}
 	} else if err := s.checkLinuxAssets(lp); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	now := s.Now()
 	ticket := make([]byte, 16)
 	_, _ = rand.Read(ticket)
 	a := &Armed{MAC: mac, Manifest: manifest, ArmedAt: now, Expires: now.Add(s.ArmTTL), Ticket: hex.EncodeToString(ticket), Linux: lp}
+	if requestKey != "" {
+		a.RunID = randomID()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.degraded {
-		return nil, degradedErr
+		return nil, false, degradedErr
 	}
+	s.expire()
 	prev := s.st.Armed[mac]
+	if prev != nil && !actor.allows(prev.Manifest) {
+		return nil, false, errImageScope
+	}
+	if requestKey != "" {
+		if s.st.Requests == nil {
+			s.st.Requests = map[string]*armReceipt{}
+		}
+		if receipt := s.st.Requests[requestKey]; receipt != nil {
+			return receipt.replay(mac, manifest)
+		}
+		// Do not evict a recent receipt: a delayed retry must never become a wipe.
+		for key, receipt := range s.st.Requests {
+			if now.Sub(receipt.ArmedAt) > 7*24*time.Hour {
+				delete(s.st.Requests, key)
+			}
+		}
+		if len(s.st.Requests) >= 4096 {
+			return nil, false, fmt.Errorf("idempotency receipt capacity reached; wait for seven-day retention to expire")
+		}
+		s.st.Requests[requestKey] = &armReceipt{RunID: a.RunID, MAC: mac, Manifest: manifest, ArmedAt: a.ArmedAt, Expires: a.Expires}
+	}
 	s.st.Armed[mac] = a
 	if err := s.commit(func() {
+		if requestKey != "" {
+			delete(s.st.Requests, requestKey)
+		}
 		if prev != nil {
 			s.st.Armed[mac] = prev
 		} else {
 			delete(s.st.Armed, mac)
 		}
 	}); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return a, nil
+	return a, false, nil
 }
 
 // doDisarm reports whether an arm was removed: false means there was none, possibly because the machine already booted.
 func (s *Server) doDisarm(mac string) (bool, error) {
+	return s.doDisarmAs(principal{Role: "admin"}, mac)
+}
+
+func (s *Server) doDisarmAs(p principal, mac string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := s.st.Armed[mac]
 	if a == nil {
 		return false, nil
+	}
+	if !p.allows(a.Manifest) {
+		return false, errImageScope
 	}
 	delete(s.st.Armed, mac)
 	if err := s.commit(func() { s.st.Armed[mac] = a }); err != nil {
@@ -477,7 +622,7 @@ func (s *Server) boot(w http.ResponseWriter, r *http.Request) {
 	prev := s.st.Deployments[mac]
 	delete(s.st.Armed, mac)
 	now := s.Now()
-	d := &Deployment{MAC: mac, Manifest: a.Manifest, BootedAt: now, UpdatedAt: now, Phase: "boot", Status: "booting", Key: hex.EncodeToString(key), Linux: a.Linux}
+	d := &Deployment{RunID: a.RunID, MAC: mac, Manifest: a.Manifest, BootedAt: now, UpdatedAt: now, Phase: "boot", Status: "booting", Key: hex.EncodeToString(key), Linux: a.Linux}
 	if a.Linux != nil {
 		d.Installer = a.Linux.Installer
 	}
@@ -613,6 +758,10 @@ func readProfile(path, name string) (*linuxProfile, error) {
 	if err != nil {
 		return nil, errBadManifest
 	}
+	return parseProfile(b, name)
+}
+
+func parseProfile(b []byte, name string) (*linuxProfile, error) {
 	var p struct {
 		Installer string        `json:"installer"`
 		Linux     *linuxProfile `json:"linux"`
@@ -626,7 +775,7 @@ func readProfile(path, name string) (*linuxProfile, error) {
 	}
 	switch p.Installer {
 	case "", "windows":
-	case "debian", "ubuntu", "proxmox":
+	case "debian", "ubuntu", "proxmox", "bazzite":
 		if p.Linux == nil {
 			return nil, fmt.Errorf("profile %s: linux configuration is required", name)
 		}

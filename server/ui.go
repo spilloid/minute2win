@@ -42,20 +42,39 @@ func render(w http.ResponseWriter, name string, data any) {
 }
 
 func (s *Server) uiIndex(w http.ResponseWriter, r *http.Request) {
+	p, signedIn := s.resolvePrincipal(r, "")
+	if !signedIn {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
 	names, err := s.manifests()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	render(w, "index.html", map[string]any{"Manifests": names, "TokenRequired": s.Token != "", "Msg": (*msg)(nil)})
+	allowed := []string{}
+	for _, n := range names {
+		if p.allows(n) {
+			allowed = append(allowed, n)
+		}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	render(w, "index.html", map[string]any{"Manifests": allowed, "Identity": p, "CanArm": p.canOperate(), "ShowLogout": p.Username != "local-preview", "Msg": (*msg)(nil)})
 }
 
 func (s *Server) uiArmed(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.expire()
-	armed := []Armed{}
+	p := principalFromContext(r.Context())
+	type armRow struct {
+		Armed
+		CanDisarm bool
+	}
+	armed := []armRow{}
 	for _, a := range s.st.Armed {
-		armed = append(armed, *a)
+		if p.allows(a.Manifest) {
+			armed = append(armed, armRow{*a, p.canOperate()})
+		}
 	}
 	s.mu.Unlock()
 	sort.Slice(armed, func(i, j int) bool { return armed[i].ArmedAt.After(armed[j].ArmedAt) })
@@ -70,10 +89,14 @@ func ago(d time.Duration) string {
 }
 
 func (s *Server) uiDeployments(w http.ResponseWriter, r *http.Request) {
+	p := principalFromContext(r.Context())
 	now := s.Now()
 	s.mu.Lock()
 	cards := []card{}
 	for _, d := range s.st.Deployments {
+		if !p.allows(d.Manifest) {
+			continue
+		}
 		dc := *d
 		c := card{Deployment: &dc, Ago: ago(now.Sub(d.BootedAt)), Who: strings.Trim(d.Model+", "+d.Serial, ", ")}
 		// While live, count from the boot record; once finished, show the engine's own measurement.
@@ -102,12 +125,18 @@ func (s *Server) uiArm(w http.ResponseWriter, r *http.Request) {
 		render(w, "msg", &msg{"err", "Not armed: " + why + "."})
 		return
 	}
-	a, err := s.doArm(r.PostFormValue("mac"), r.PostFormValue("manifest"))
+	p, _ := s.resolvePrincipal(r, r.PostFormValue("token"))
+	if !p.allows(r.PostFormValue("manifest")) {
+		render(w, "msg", &msg{"err", "Not armed: profile is outside your image scope."})
+		return
+	}
+	a, _, err := s.doArmRequest(r.PostFormValue("mac"), r.PostFormValue("manifest"), p, "")
 	if err != nil {
 		render(w, "msg", &msg{"err", "Not armed: " + err.Error()})
 		return
 	}
 	w.Header().Set("HX-Trigger", "m2w-changed")
+	s.audit(p, "arm", a.MAC, a.Manifest, "armed")
 	render(w, "msg", &msg{"ok", fmt.Sprintf("Armed %s for %s. It will be wiped on its next network boot.", a.MAC, a.Manifest)})
 	// clear the MAC field out of band, only on success
 	_, _ = w.Write([]byte("\n"))
@@ -125,7 +154,8 @@ func (s *Server) uiDisarm(w http.ResponseWriter, r *http.Request) {
 		render(w, "msg", &msg{"err", "Not disarmed: bad MAC."})
 		return
 	}
-	removed, err := s.doDisarm(mac)
+	p, _ := s.resolvePrincipal(r, r.PostFormValue("token"))
+	removed, err := s.doDisarmAs(p, mac)
 	w.Header().Set("HX-Trigger", "m2w-changed")
 	switch {
 	case err != nil:
@@ -133,6 +163,7 @@ func (s *Server) uiDisarm(w http.ResponseWriter, r *http.Request) {
 	case !removed:
 		render(w, "msg", &msg{"err", mac + " was not armed. If it already booted, the deployment is under way and was not cancelled; see Deployments."})
 	default:
+		s.audit(p, "disarm", mac, "", "disarmed")
 		render(w, "msg", &msg{"ok", "Disarmed " + mac + "."})
 	}
 }
