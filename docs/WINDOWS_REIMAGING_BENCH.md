@@ -16,7 +16,7 @@ Set up one Windows PC to give a row of workstations a fresh copy of Windows. **m
 
 ### 1. Put both tools on your Windows PC
 
-Unzip the signed Windows x64 build of minute2win and install kvm-it. Plug the kvm-it adapter's **USB** port into the workstation you want to control. Add an HDMI capture device if you want to see that workstation's screen in kvm-it. [minute2win downloads](https://github.com/spilloid/minute2win/releases) · [kvm-it setup](https://github.com/spilloid/kvm-it/blob/main/docs/getting-started.md)
+Unzip the signed Windows x64 build of minute2win and install kvm-it 0.8.2 or newer. Plug the kvm-it adapter's **USB** port into the workstation you want to control. Add an HDMI capture device if you want to see that workstation's screen in kvm-it. [minute2win downloads](https://github.com/spilloid/minute2win/releases) · [kvm-it downloads](https://github.com/spilloid/kvm-it/releases/latest)
 
 ### 2. Put your Windows files online
 
@@ -37,17 +37,11 @@ $env:M2W_TOKEN = 'replace-with-your-operator-token'
 ### 4. Choose how the workstations will start
 
 - **Network Boot (PXE).** If the startup menu offers IPv4 network boot, point your existing PXE service at minute2win. If you need a PXE service, add `-pxe -pxe-dir .\ipxe` to the command in step 3 and run it as Administrator with your iPXE boot files in that folder. [Network boot setup](SERVER.md)
-- **USB boot with kvm-it.** If the startup menu offers UEFI USB boot, try the kvm-it boot drive. iPXE, the program on the drive, needs to see the workstation's wired adapter. Build the drive with the script below in place of the demo, flash it through the adapter's **COM** port, then turn on **Boot drive** in kvm-it. Your network gives the workstation an IP address through ordinary DHCP. [Build the kvm-it boot drive](https://github.com/spilloid/kvm-it/blob/main/docs/developing.md#the-boot-drive-image)
+- **USB boot with kvm-it.** Use this path if the workstation offers UEFI USB boot and iPXE can see its wired adapter. Your network gives the workstation an IP address through ordinary DHCP. [kvm-it boot-drive setup](https://github.com/spilloid/kvm-it/blob/v0.8.2/docs/getting-started.md#point-the-boot-drive-at-your-deployment-server)
 
-For the USB path, save this as `autoexec.ipxe` and replace the IP address with your bench PC's address. The drive waits five seconds for a keypress so an ordinary startup can continue to the installed disk.
+To set up the USB path, connect the adapter's **COM** port to the bench PC and disconnect the adapter in the app. Open **Tools → Devices → Flash adapter → Set boot URL**. Enter `http://192.168.1.50:8080/boot` with your bench PC's LAN address, then select **Append the Ethernet MAC to the URL**. Choose the adapter's COM port and select **Write boot drive**. Reconnect in kvm-it and turn on **Boot drive**.
 
-```ipxe
-#!ipxe
-prompt --timeout 5000 Press a key to start the minute2win boot || exit 1
-dhcp || exit 1
-chain http://192.168.1.50:8080/boot/${netX/mac} || exit 1
-exit 1
-```
+The drive waits five seconds for a keypress, then sends the workstation's wired MAC to minute2win so it can find the right job. For a bench managed through MCP, use the same URL with `boot_drive_configure` and `append_mac` set to `true`. [Configure the boot drive through MCP](https://github.com/spilloid/kvm-it/blob/v0.8.2/docs/mcp.md#configure-the-usb-boot-drive)
 
 If USB boot cannot see a dock that works with Network Boot, use Network Boot with that dock. Use Windows installer media for a workstation without a working network path. [Boot options](GETTING_STARTED.md)
 
