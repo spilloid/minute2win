@@ -4,15 +4,29 @@ title: Reimage workstations from one Windows PC
 
 # Reimage workstations from one Windows PC
 
-A repair bench, classroom, or lab can use one Windows PC to reimage a row of workstations. Run **minute2win** for the Windows profiles and live deployment board. Run its sibling **kvm-it** on the same PC to watch the target and use its keyboard, mouse, and boot menu from the bench.
+Set up one Windows PC to give a row of workstations a fresh copy of Windows. **minute2win** decides which machine gets the image and shows the install progress. Its sibling **kvm-it** lets you see the workstation's screen and use its startup menu from your bench.
 
-Build the Windows profile once. For each workstation, verify its Ethernet MAC, arm it, and pick a boot device. WinPE takes it from there. While Windows installs on that machine, move on to the next one.
+**Six steps.** Do the first four once. Repeat the last two for each workstation.
 
-## Set up the bench once
+- **Read the guide in about 5 minutes.**
+- **Set aside an afternoon for your first setup**, including downloads and a test on a spare PC or virtual machine. [Full walkthrough](WALKTHROUGH.md)
+- **One Windows 11 test VM took about 6 minutes to install the image.** Windows setup after reboot can add time. Your disk speed and network determine how long each machine takes. [Measured run](validation/2026-10-11-windows-server.md)
 
-1. **Install the two tools on your Windows PC.** Unzip the signed Windows x64 minute2win release and run `minute2win-server.exe`. The console opens in your browser. The optional tray icon gives you a shortcut back to it. Install kvm-it on the same PC and connect its adapter to the workstation you want to control. [minute2win downloads](https://github.com/spilloid/minute2win/releases) · [kvm-it downloads](https://github.com/spilloid/kvm-it/releases) · [Tray icon](DESKTOP.md)
-2. **Build and host the Windows boot files.** Use the Windows ADK and WinPE add-on to build the boot image, then stage the minute2win scripts. Serve those files and your licensed `install.wim` over HTTPS. Cloudflare R2 with a custom domain works for this. Add the wired NIC and storage drivers your fleet needs to WinPE, especially if the bench uses USB Ethernet docks. [Boot assets](BOOT_ASSETS.md)
-3. **Create a profile and start minute2win on your bench LAN.** Copy a Windows profile into `profiles` and set the image URL, SHA-256, and edition, such as Windows 11 Pro. Use your own media URL and operator token in the example below. Keep the server reachable from the workstations on a trusted deployment network. [Getting started](GETTING_STARTED.md) · [Profile reference](MANIFESTS.md)
+## Set up your bench once
+
+### 1. Put both tools on your Windows PC
+
+Unzip the signed Windows x64 build of minute2win and install kvm-it. Plug the kvm-it adapter's **USB** port into the workstation you want to control. Add an HDMI capture device if you want to see that workstation's screen in kvm-it. [minute2win downloads](https://github.com/spilloid/minute2win/releases) · [kvm-it setup](https://github.com/spilloid/kvm-it/blob/main/docs/getting-started.md)
+
+### 2. Put your Windows files online
+
+Build **WinPE**, the small Windows environment that starts the install, using Microsoft's Windows ADK and WinPE add-on. Add the network and storage drivers your workstations need. Put WinPE, the minute2win boot files, and your licensed Windows image (`install.wim`) on an HTTPS host. A Cloudflare R2 bucket with a custom domain works for this. [Build and host the boot files](BOOT_ASSETS.md)
+
+### 3. Start minute2win and save your install settings
+
+Copy a Windows profile into `profiles`. Set the image URL, its SHA-256 checksum (the file's fingerprint), and the edition, such as Windows 11 Pro.
+
+On your bench PC, replace the token and image URL below, then run the command in PowerShell. Open `http://localhost:8080` and sign in as `server-admin` with that token. Your workstations need to reach the bench PC on your trusted wired network. [Setup and sign-in](GETTING_STARTED.md) · [Profile settings](MANIFESTS.md)
 
 ```powershell
 $env:M2W_TOKEN = 'replace-with-your-operator-token'
@@ -20,30 +34,45 @@ $env:M2W_TOKEN = 'replace-with-your-operator-token'
   -image-base https://images.example.net/windows11
 ```
 
-The HTTPS host serves the big files. minute2win on your bench PC decides which armed machine gets which image and shows you where the install is. You can keep the same Windows image when you move the deployment server or add another bench.
+### 4. Choose how the workstations will start
 
-## Choose how each workstation boots
+- **Network Boot (PXE).** If the startup menu offers IPv4 network boot, point your existing PXE service at minute2win. If you need a PXE service, add `-pxe -pxe-dir .\ipxe` to the command in step 3 and run it as Administrator with your iPXE boot files in that folder. [Network boot setup](SERVER.md)
+- **USB boot with kvm-it.** If the startup menu offers UEFI USB boot, try the kvm-it boot drive. iPXE, the program on the drive, needs to see the workstation's wired adapter. Build the drive with the script below in place of the demo, flash it through the adapter's **COM** port, then turn on **Boot drive** in kvm-it. Your network gives the workstation an IP address through ordinary DHCP. [Build the kvm-it boot drive](https://github.com/spilloid/kvm-it/blob/main/docs/developing.md#the-boot-drive-image)
 
-- **Firmware PXE.** Pick IPv4 network boot in the workstation's boot menu. Use the network's existing PXE setup or add minute2win's built-in PXE and TFTP service on the bench LAN. Both paths should give iPXE the server's per-MAC boot URL. [PXE setup](SERVER.md)
-- **kvm-it USB boot drive.** If the workstation offers UEFI USB boot and iPXE can see its wired Ethernet adapter, select the kvm-it drive in the boot menu. Build the drive image with the `autoexec.ipxe` below in place of the stock demo script, flash it through the adapter's COM port, and turn on **Boot drive** in kvm-it. This path uses ordinary DHCP. [kvm-it boot drive build](https://github.com/spilloid/kvm-it/blob/main/docs/developing.md#the-boot-drive-image)
-
-Replace the address below with your bench PC's LAN address. The keypress starts the USB boot. If you leave it alone, the workstation can fall through to its installed disk.
+For the USB path, save this as `autoexec.ipxe` and replace the IP address with your bench PC's address. The drive waits five seconds for a keypress so an ordinary startup can continue to the installed disk.
 
 ```ipxe
 #!ipxe
-prompt --timeout 5000 Press a key to check minute2win for an armed install || exit 1
+prompt --timeout 5000 Press a key to start the minute2win boot || exit 1
 dhcp || exit 1
 chain http://192.168.1.50:8080/boot/${netX/mac} || exit 1
 exit 1
 ```
 
-If a dock works in firmware PXE but disappears when iPXE starts from USB, use firmware PXE with that dock. For hardware that cannot reach the network in either path, use Windows installer media. [Boot path setup](GETTING_STARTED.md)
+If USB boot cannot see a dock that works with Network Boot, use Network Boot with that dock. Use Windows installer media for a workstation without a working network path. [Boot options](GETTING_STARTED.md)
 
-## Arm a workstation and watch it install
+![The kvm-it app showing a sample workstation startup menu with Install over the network selected](https://raw.githubusercontent.com/spilloid/kvm-it/v0.8.1/docs/assets/screenshots/console-08.png)
 
-1. Start with a disposable workstation or VM. Confirm the MAC of the interface it will boot through and the internal disk you are about to erase.
-2. In minute2win, select your Windows profile and arm that MAC. **Arming authorizes erasing the selected internal disk on the next boot into minute2win.**
-3. Use kvm-it or the workstation's own keyboard to select the boot device. The board shows the deployment once the one-time arm is claimed.
-4. Verify the new Windows desktop, then boot once more without arming. The workstation should carry on to Windows. Use that same profile for the rest of the bench.
+*A demo startup menu in kvm-it. Each workstation maker labels the options differently.*
 
-A recorded Windows 11 VM deployment took about six minutes. Image size, disk speed, and shared bandwidth determine how quickly a batch finishes. The time you save on every machine is the setup you already did once. [Verification record](STATUS.md)
+## Reimage each workstation
+
+### 5. Check the wired address and arm the machine
+
+Start with a spare PC or virtual machine. Check the MAC address, the ID of the wired adapter you will boot through. On a workstation running Windows, look for **Physical Address** under its wired adapter in `ipconfig /all`. If the startup menu shows a different address for network boot, use that one.
+
+In minute2win, enter the address, pick the Windows profile, and click **Arm for wipe**. **The next minute2win boot will erase the selected internal disk.**
+
+![The minute2win console with a sample MAC address entered, the Windows profile selected, and the Arm for wipe button visible](assets/screenshots/armed-desktop.png)
+
+*The Armed list shows which machine is next. This screenshot uses demo data.*
+
+### 6. Boot it and check for Windows
+
+Use kvm-it or the workstation keyboard to select **Network Boot** or the **kvm-it USB drive**. For USB boot, press a key when prompted. The machine claims its one-time arm, and the board shows the install moving along while you get the next workstation ready.
+
+![The minute2win deployment board showing a completed sample Windows install](assets/screenshots/deployed-desktop.png)
+
+*The board shows when the install finished. The clock in this demo screenshot uses sample data.*
+
+On your first run, check that the new Windows installation starts. Boot the same way again with no new arm. The machine should carry on to Windows. Now the bench is ready to repeat the last two steps.
