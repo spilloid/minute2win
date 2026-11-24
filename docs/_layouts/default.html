@@ -17,7 +17,7 @@
   <div class="shell">
     <nav aria-label="Documentation">
       <p class="nav-title">Documentation</p>
-      {% assign guides = 'guide.md,WALKTHROUGH.md,GETTING_STARTED.md,BOOT_ASSETS.md,LINUX.md,MANIFESTS.md,SERVER.md,DESKTOP.md,API.md,MCP.md,AUTH.md,TROUBLESHOOTING.md,STATUS.md,RELEASING.md' | split: ',' %}
+      {% assign guides = 'guide.md,WALKTHROUGH.md,WINDOWS_REIMAGING_BENCH.md,GETTING_STARTED.md,BOOT_ASSETS.md,LINUX.md,MANIFESTS.md,SERVER.md,DESKTOP.md,API.md,MCP.md,AUTH.md,TROUBLESHOOTING.md,STATUS.md,RELEASING.md' | split: ',' %}
       {% for path in guides %}
         {% assign guide = site.pages | where: 'path', path | first %}
         <a href="{{ guide.url | relative_url }}" {% if page.path == path %}aria-current="page"{% endif %}>{{ guide.title | escape }}</a>

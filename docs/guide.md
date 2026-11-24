@@ -38,6 +38,7 @@ When it boots, the arm is used up and the board fills in each phase's lap time:
 | Guide | Read it when you want to... |
 | --- | --- |
 | [Walkthrough](WALKTHROUGH.md) | Do a first deployment on one Windows PC, start to finish |
+| [Reimage workstations from one Windows PC](WINDOWS_REIMAGING_BENCH.md) | Run minute2win and kvm-it together on a reimaging bench |
 | [Getting started](GETTING_STARTED.md) | Set up on your own network, on Windows or Linux |
 | [Boot assets](BOOT_ASSETS.md) | Build WinPE, lay out the boot files, update the engine scripts |
 | [Linux installation](LINUX.md) | Prepare experimental Debian, Ubuntu Server or Proxmox installations |
